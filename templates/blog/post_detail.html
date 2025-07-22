@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <article>
+                <h1>{{ post.title }}</h1>
+                <p class="text-muted">
+                    <i class="bi bi-person"></i> {{ post.author }} | 
+                    <i class="bi bi-calendar"></i> {{ post.publish|date:"Y年m月d日" }}
+                    {% if user.is_authenticated %}
+                        {% if post.author == user or user.is_staff %}
+                            | <a href="{% url 'blog:post_update' post.pk %}" class="text-decoration-none">編集</a>
+                            | <a href="{% url 'blog:post_delete' post.pk %}" class="text-decoration-none text-danger">削除</a>
+                        {% endif %}
+                    {% endif %}
+                </p>
+                <hr>
+                <div class="post-content">
+                    {{ post.content_html|safe }}
+                </div>
+            </article>
+            
+            <hr class="my-5">
+            
+            <div class="comments">
+                <h3>コメント ({{ comments.count }})</h3>
+                
+                {% for comment in comments %}
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted">
+                                {{ comment.name }} - {{ comment.created|date:"Y年m月d日 H:i" }}
+                            </h6>
+                            <p class="card-text">{{ comment.body|linebreaksbr }}</p>
+                        </div>
+                    </div>
+                {% empty %}
+                    <p>まだコメントはありません。</p>
+                {% endfor %}
+                
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">コメントを投稿</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="post">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                {{ comment_form.name.label_tag }}
+                                {{ comment_form.name }}
+                            </div>
+                            <div class="mb-3">
+                                {{ comment_form.email.label_tag }}
+                                {{ comment_form.email }}
+                            </div>
+                            <div class="mb-3">
+                                {{ comment_form.body.label_tag }}
+                                {{ comment_form.body }}
+                            </div>
+                            <button type="submit" class="btn btn-primary">投稿</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">検索</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" action="{% url 'blog:post_search' %}">
+                        <div class="input-group">
+                            <input type="text" name="query" class="form-control" placeholder="検索...">
+                            <button class="btn btn-primary" type="submit">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.post-content h1 { font-size: 2em; margin: 1em 0 0.5em 0; }
+.post-content h2 { font-size: 1.5em; margin: 1em 0 0.5em 0; }
+.post-content h3 { font-size: 1.3em; margin: 1em 0 0.5em 0; }
+.post-content p { margin: 0.5em 0; }
+.post-content strong { font-weight: bold; }
+.post-content a { color: #007bff; text-decoration: none; }
+.post-content a:hover { text-decoration: underline; }
+</style>
+{% endblock %}
