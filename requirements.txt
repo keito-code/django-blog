@@ -1,7 +1,11 @@
-Django==5.2.4
-psycopg2-binary==2.9.10
-markdown==3.8.2
-gunicorn==23.0.0
-whitenoise==6.9.0
+asgiref==3.9.1
 dj-database-url==3.0.1
+Django==5.2.4
+gunicorn==23.0.0
+Markdown==3.8.2
+packaging==25.0
+psycopg2-binary==2.9.10
 python-decouple==3.8
+sqlparse==0.5.3
+tzdata==2025.2
+whitenoise==6.9.0
