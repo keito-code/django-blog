@@ -55,6 +55,17 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 # 依存関係のインストール
 pip install -r requirements.txt
 
+# 環境変数の設定
+cp .env.example .env
+# .envファイルを編集してSECRET_KEYを設定
+
+# SECRET_KEYの生成方法
+python manage.py shell
+>>> from django.core.management.utils import get_random_secret_key
+>>> print(get_random_secret_key())
+>>> exit()
+
+
 # マイグレーション
 python manage.py migrate
 
@@ -65,12 +76,34 @@ python manage.py createsuperuser
 python manage.py runserver
  ```
  
- ## 🔧 環境変数
+### ⚠️ 重要な注意事項
+**SECRET_KEYは必須です。** defaultを削除したため、`.env`ファイルにSECRET_KEYを設定しないとアプリケーションは起動しません。
 
-本番環境では以下の環境変数を設定：
-- `SECRET_KEY`: Djangoシークレットキー
-- `DEBUG`: False（本番環境）
-- `DATABASE_URL`: PostgreSQLの接続URL
+
+## 🔧 環境変数
+
+### 開発環境（.env ファイル）
+```env
+SECRET_KEY=your-secret-key-here  # 必須：上記の方法で生成
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+DATABASE_URL=sqlite:///db.sqlite3
+```
+
+### 本番環境（Render.com）
+
+- `SECRET_KEY`: Djangoシークレットキー(必須)
+- `DEBUG`: False（必須）
+- `DATABASE_URL`: PostgreSQLの接続URL(自動接続)
+- `ALLOWED_HOSTS`: your-site.onrender.com(必須)
+
+## 📚 主要な依存関係
+- `Django==5.2.4` - Webフレームワーク
+- `python-decouple`- 環境変数管理
+- `dj-database-url`- データベース設定
+- `psycopg2-binary`- PostgreSQL接続
+- `gunicorn`- 本番用WSGIサーバー
+- `Markdown`- Markdown記法対応
 
 ## 📝 今後の改善予定
 
