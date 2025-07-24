@@ -6,6 +6,13 @@ __pycache__/
 .Python
 venv/
 env/
+Scripts/
+bin/
+lib/ 
+lib64
+pyvenv.cfg 
+Include/
+Lib/
 *.egg-info/
 dist/
 build/
