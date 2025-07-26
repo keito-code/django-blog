@@ -8,6 +8,7 @@ from django.contrib import messages
 from .models import Post, Comment
 from .forms import PostForm, CommentForm, SearchForm
 import markdown
+import bleach
 
 
 def post_list(request):
@@ -38,8 +39,29 @@ def post_detail(request, slug):
         comment_form = CommentForm()
     
     md = markdown.Markdown(extensions=['extra', 'sane_lists'])
-    post.content_html = md.convert(post.content)
+    html = md.convert(post.content)
     
+    # 安全なタグのみ許可
+    allowed_tags = [
+        'p', 'br', 'strong', 'em', 'u', 's',
+        'ul', 'ol', 'li', 
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'blockquote', 'code', 'pre',
+        'a', 'img', 'hr'
+    ]
+    allowed_attrs = {
+        'a': ['href', 'title'],
+        'img': ['src', 'alt', 'title']
+    }
+    
+    # サニタイズ
+    post.content_html = bleach.clean(
+        html, 
+        tags=allowed_tags, 
+        attributes=allowed_attrs,
+        strip=True
+    )
+
     return render(request, 'blog/post_detail.html', {
         'post': post,
         'comments': comments,

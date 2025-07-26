@@ -3,6 +3,10 @@ from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib import messages
 from .forms import SignUpForm
+from axes.decorators import axes_dispatch
+from axes.handlers.proxy import AxesProxyHandler
+
+
 
 
 def signup(request):
@@ -26,8 +30,14 @@ def logout_view(request):
     messages.success(request, 'ログアウトしました。')
     return redirect('blog:post_list')
 
-
+@axes_dispatch  # デコレータを追加
 def login_view(request):
+    # ロック状態をチェック
+    if AxesProxyHandler.is_locked(request):
+        messages.error(request, 'アカウントがロックされています。しばらくしてから再度お試しください。')
+        return render(request, 'accounts/login.html', {'form':AuthenticationForm()})
+
+
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():

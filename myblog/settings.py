@@ -34,6 +34,9 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv(
 if os.environ.get('RENDER'):
     ALLOWED_HOSTS.append(os.environ.get('RENDER_EXTERNAL_HOSTNAME'))
 
+# 管理画面のURLを環境変数から取得 (セキュリティ向上)
+ADMIN_URL = config('ADMIN_URL') # 必須にする
+
 
 # Application definition
 
@@ -44,6 +47,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'axes',
     'blog',
     'accounts',
 ]
@@ -57,6 +61,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'axes.middleware.AxesMiddleware',
 ]
 
 ROOT_URLCONF = 'myblog.urls'
@@ -98,6 +103,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8,  # 8文字以上に設定
+        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -139,3 +147,38 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'blog:post_list'
 LOGOUT_REDIRECT_URL = 'blog:post_list'
+
+# セキュリティ設定
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_SSL_REDIRECT = True
+
+    # リファラーポリシー
+    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+    
+    # HSTS (段階的に)
+    SECURE_HSTS_SECONDS = 3600 # まず一時間から
+
+
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True 
+
+# django-axes 設定（ブルートフォース対策）
+AXES_FAILURE_LIMIT = 5  # 5回失敗でロック
+AXES_COOLOFF_TIME = 1  # 1時間ロック
+AXES_RESET_ON_SUCCESS = True  # 成功したらカウントリセット
+
+# 認証バックエンドの設定
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'axes.backends.AxesBackend',
+]
+
+
+
+
+
