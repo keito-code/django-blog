@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}ページが見つかりません{% endblock %}
+
+{% block content %}
+<div class="container mt-5 text-center">
+    <h1 class="display-1">404</h1>
+    <h2>ページが見つかりません</h2>
+    <p class="lead">お探しのページは存在しないか、移動した可能性があります。</p>
+    <a href="{% url 'blog:post_list' %}" class="btn btn-primary">ホームに戻る</a>
+</div>
+{% endblock %}
