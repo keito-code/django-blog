@@ -1,1 +1,10 @@
 /* Custom CSS */
+
+/* 記事詳細ページのスタイル */
+.post-content h1 { font-size: 2em; margin: 1em 0 0.5em 0; }
+.post-content h2 { font-size: 1.5em; margin: 1em 0 0.5em 0; }
+.post-content h3 { font-size: 1.3em; margin: 1em 0 0.5em 0; }
+.post-content p { margin: 0.5em 0; }
+.post-content strong { font-weight: bold; }
+.post-content a { color: #007bff; text-decoration: none; }
+.post-content a:hover { text-decoration: underline; }

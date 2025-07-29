@@ -39,7 +39,7 @@
                         <ul class="pagination">
                             {% if posts.has_previous %}
                                 <li class="page-item">
-                                    <a class="page-link" href="?query={{ query }}&page={{ posts.previous_page_number }}">前へ</a>
+                                    <a class="page-link" href="?query={{ query|urlencode }}&page={{ posts.previous_page_number }}">前へ</a>
                                 </li>
                             {% endif %}
                             
@@ -50,14 +50,14 @@
                                     </li>
                                 {% else %}
                                     <li class="page-item">
-                                        <a class="page-link" href="?query={{ query }}&page={{ num }}">{{ num }}</a>
+                                        <a class="page-link" href="?query={{ query|urlencode }}&page={{ num }}">{{ num }}</a>
                                     </li>
                                 {% endif %}
                             {% endfor %}
                             
                             {% if posts.has_next %}
                                 <li class="page-item">
-                                    <a class="page-link" href="?query={{ query }}&page={{ posts.next_page_number }}">次へ</a>
+                                    <a class="page-link" href="?query={{ query|urlencode }}&page={{ posts.next_page_number }}">次へ</a>
                                 </li>
                             {% endif %}
                         </ul>

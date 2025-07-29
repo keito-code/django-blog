@@ -5,10 +5,42 @@ from django.db.models import Q
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 from django.contrib import messages
-from .models import Post, Comment
+from django.http import JsonResponse, HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from django.utils.decorators import method_decorator
+import json
+import logging
+from .models import Post, Comment, CSPViolation
 from .forms import PostForm, CommentForm, SearchForm
 import markdown
 import bleach
+
+
+def generate_unique_slug(title, post_id=None):
+    """重複しないスラッグを生成"""
+    base_slug = slugify(title, allow_unicode=False)
+    
+    # 日本語タイトルなどでスラッグが空の場合
+    if not base_slug:
+        base_slug = f"post-{get_random_string(8)}"
+    
+    slug = base_slug
+    counter = 1
+    
+    # 重複チェック（自分自身は除外）
+    while True:
+        qs = Post.objects.filter(slug=slug)
+        if post_id:
+            qs = qs.exclude(pk=post_id)
+        
+        if not qs.exists():
+            break
+            
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+    
+    return slug
 
 
 def post_list(request):
@@ -77,13 +109,11 @@ def post_create(request):
         if form.is_valid():
             post = form.save(commit=False)
             post.author = request.user
+
+            # スラッグ生成
             if not post.slug:
-                post.slug = slugify(post.title, allow_unicode=False)
-                # 空文字列の場合 (日本語タイトル) の処理を追加
-                if not post.slug:
-                    from django.utils.crypto import get_random_string
-                    post.slug = f"post-{get_random_string(8)}"
-            
+                post.slug = generate_unique_slug(post.title)
+
             if 'status' in request.POST:
                 post.status = request.POST['status']
             
@@ -112,12 +142,9 @@ def post_update(request, pk):
         if form.is_valid():
             post = form.save(commit=False)
 
-            # slugの自動生成
+            # スラッグ生成
             if not post.slug:
-                post.slug = slugify(post.title, allow_unicode=False)
-                # 空文字列の場合 (日本語タイトル) の処理を追加
-                if not post.slug:
-                    post.slug = f"post-{get_random_string(8)}"
+                post.slug = generate_unique_slug(post.title, post.pk)
 
             # アクションに応じたステータスを設定
             action = request.POST.get('action', 'save')
@@ -192,3 +219,50 @@ def post_search(request):
 def post_draft_list(request):
     posts = Post.objects.filter(status='draft', author=request.user)
     return render(request, 'blog/post_draft_list.html', {'posts': posts})
+
+
+logger = logging.getLogger(__name__)
+
+@csrf_exempt
+@require_POST
+def csp_report(request):
+    """CSP違反レポートを受信してデータベースに保存"""
+    try:
+        # CSPレポートはJSONで送信される
+        data = json.loads(request.body.decode('utf-8'))
+        csp_report = data.get('csp-report', {})
+        
+        # IPアドレスを取得（プロキシ経由の場合も考慮）
+        ip_address = request.META.get('HTTP_X_FORWARDED_FOR')
+        if ip_address:
+            ip_address = ip_address.split(',')[0].strip()
+        else:
+            ip_address = request.META.get('REMOTE_ADDR')
+        
+        # CSPViolationモデルに保存
+        violation = CSPViolation.objects.create(
+            directive=csp_report.get('violated-directive', ''),
+            blocked_uri=csp_report.get('blocked-uri', ''),
+            document_uri=csp_report.get('document-uri', ''),
+            line_number=csp_report.get('line-number'),
+            column_number=csp_report.get('column-number'),
+            source_file=csp_report.get('source-file', ''),
+            original_policy=csp_report.get('original-policy', ''),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            ip_address=ip_address
+        )
+        
+        # ログにも記録
+        logger.warning(
+            f'CSP Violation: {violation.directive} blocked {violation.blocked_uri} '
+            f'on {violation.document_uri} from {ip_address}'
+        )
+        
+        return HttpResponse(status=204)  # No Content
+        
+    except json.JSONDecodeError:
+        logger.error('Invalid JSON in CSP report')
+        return HttpResponse(status=400)
+    except Exception as e:
+        logger.error(f'Error processing CSP report: {e}')
+        return HttpResponse(status=500)

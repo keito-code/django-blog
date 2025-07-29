@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 import dj_database_url
 from decouple import config, Csv
+from csp.constants import NONCE, SELF
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -47,6 +48,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'csp',
     'axes',
     'blog',
     'accounts',
@@ -55,6 +57,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'csp.middleware.CSPMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -76,6 +79,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'csp.context_processors.nonce',
             ],
         },
     },
@@ -150,22 +154,51 @@ LOGOUT_REDIRECT_URL = 'blog:post_list'
 
 # セキュリティ設定
 if not DEBUG:
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    X_FRAME_OPTIONS = 'DENY'
-    SECURE_CONTENT_TYPE_NOSNIFF = True
+    # セッションクッキーのセキュリティ
+    SESSION_COOKIE_SECURE = True  # HTTPS接続でのみ送信
+    CSRF_COOKIE_SECURE = True      # CSRF保護クッキーもHTTPS必須
+    
+    # クリックジャッキング対策
+    X_FRAME_OPTIONS = 'DENY'  # iframe内での表示を完全禁止
+    
+    # コンテンツタイプの推測を防ぐ
+    SECURE_CONTENT_TYPE_NOSNIFF = True  # IEのコンテンツ自動判定を無効化
+    
+    # XSSフィルター（レガシー、最新ブラウザでは不要）
     SECURE_BROWSER_XSS_FILTER = True
-    SECURE_SSL_REDIRECT = True
+    
+    # HTTPSへの自動リダイレクト
+    SECURE_SSL_REDIRECT = True  # HTTPアクセスを強制的にHTTPSへ
 
     # リファラーポリシー
     SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
     
-    # HSTS (段階的に)
-    SECURE_HSTS_SECONDS = 3600 # まず一時間から
+    # HSTS (HTTP Strict Transport Security)
+    # ブラウザに「このサイトは今後HTTPSでのみアクセスする」と記憶させる
+    # 段階的に期間を延長することで、設定ミスのリスクを最小化
+    
+    # SECURE_HSTS_SECONDS = 3600  # 初期設定: 1時間（2025/07/29）
+    
+    # 段階的延長計画：
+    # フェーズ1: 2025/07/30 - 1日に延長（現在）
+    SECURE_HSTS_SECONDS = 86400  # 24時間
+    
+    # フェーズ2: 2025/08/06 - 1週間に延長予定
+    # SECURE_HSTS_SECONDS = 604800  # 7日間
+    
+    # フェーズ3: 2025/08/13 - 1ヶ月に延長予定
+    # SECURE_HSTS_SECONDS = 2592000  # 30日間
+    
+    # フェーズ4: 2025/09/13 - 1年に延長予定（最終目標）
+    # SECURE_HSTS_SECONDS = 31536000  # 365日間
+    
+    # 将来的な追加設定（現在は無効）
+    # SECURE_HSTS_INCLUDE_SUBDOMAINS = True  # サブドメインも対象に
+    # SECURE_HSTS_PRELOAD = True  # ブラウザのプリロードリストに登録
 
-
+# HTTPOnlyフラグ（XSS対策: JavaScriptからのクッキーアクセスを禁止）
 SESSION_COOKIE_HTTPONLY = True
-CSRF_COOKIE_HTTPONLY = True 
+CSRF_COOKIE_HTTPONLY = True
 
 # django-axes 設定（ブルートフォース対策）
 AXES_FAILURE_LIMIT = 5  # 5回失敗でロック
@@ -224,5 +257,25 @@ LOGGING = {
 # ログディレクトリの作成
 LOGS_DIR = BASE_DIR / 'logs'
 LOGS_DIR.mkdir(exist_ok=True)
+
+
+# Content Security Policy (CSP) 設定 (django-csp 4.0+ 形式)
+# レポートオンリーモードで開始（実際のブロックはしない）
+CONTENT_SECURITY_POLICY = {
+    'DIRECTIVES': {
+        'base-uri': (SELF,),
+        'connect-src': (SELF,),
+        'default-src': (SELF,),
+        'font-src': (SELF, 'https://stackpath.bootstrapcdn.com', 'https://cdn.jsdelivr.net'),
+        'form-action': (SELF,),
+        'frame-src': ("'none'",),
+        'img-src': (SELF, 'data:', 'https:'),
+        'object-src': ("'none'",),
+        'report-uri': '/csp-report/',
+        'script-src': (SELF, NONCE, 'https://stackpath.bootstrapcdn.com', 'https://cdn.jsdelivr.net'),
+        'style-src': (SELF, NONCE, 'https://stackpath.bootstrapcdn.com', 'https://cdn.jsdelivr.net')
+    },
+    'EXCLUDE_URL_PREFIXES': ('/admin/',),
+}
 
 

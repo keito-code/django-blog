@@ -3,6 +3,7 @@ bleach==6.2.0
 dj-database-url==3.0.1
 Django==5.2.4
 django-axes==8.0.0
+django-csp==4.0
 gunicorn==23.0.0
 Markdown==3.8.2
 packaging==25.0

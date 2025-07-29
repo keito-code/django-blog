@@ -11,4 +11,5 @@ urlpatterns = [
     path('<int:pk>/edit/', views.post_update, name='post_update'),
     path('<int:pk>/delete/', views.post_delete, name='post_delete'),
     path('post/<slug:slug>/', views.post_detail, name='post_detail'),
+    path('csp-report/', views.csp_report, name='csp_report'),
 ]
