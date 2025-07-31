@@ -2,8 +2,6 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.utils.crypto import get_random_string
-from django.utils.text import slugify
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -15,32 +13,6 @@ from .models import Post, Comment, CSPViolation
 from .forms import PostForm, CommentForm, SearchForm
 import markdown
 import bleach
-
-
-def generate_unique_slug(title, post_id=None):
-    """重複しないスラッグを生成"""
-    base_slug = slugify(title, allow_unicode=False)
-    
-    # 日本語タイトルなどでスラッグが空の場合
-    if not base_slug:
-        base_slug = f"post-{get_random_string(8)}"
-    
-    slug = base_slug
-    counter = 1
-    
-    # 重複チェック（自分自身は除外）
-    while True:
-        qs = Post.objects.filter(slug=slug)
-        if post_id:
-            qs = qs.exclude(pk=post_id)
-        
-        if not qs.exists():
-            break
-            
-        slug = f"{base_slug}-{counter}"
-        counter += 1
-    
-    return slug
 
 
 def post_list(request):
@@ -110,10 +82,6 @@ def post_create(request):
             post = form.save(commit=False)
             post.author = request.user
 
-            # スラッグ生成
-            if not post.slug:
-                post.slug = generate_unique_slug(post.title)
-
             if 'status' in request.POST:
                 post.status = request.POST['status']
             
@@ -141,10 +109,6 @@ def post_update(request, pk):
         form = PostForm(request.POST, instance=post)
         if form.is_valid():
             post = form.save(commit=False)
-
-            # スラッグ生成
-            if not post.slug:
-                post.slug = generate_unique_slug(post.title, post.pk)
 
             # アクションに応じたステータスを設定
             action = request.POST.get('action', 'save')

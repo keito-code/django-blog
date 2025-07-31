@@ -1,6 +1,5 @@
 from django.contrib import admin
 from .models import Post, Comment, CSPViolation
-from .views import generate_unique_slug
 
 
 admin.site.site_url = None # 「サイトを表示」リンクを非表示
@@ -16,12 +15,6 @@ class PostAdmin(admin.ModelAdmin):
     date_hierarchy = 'publish'
     ordering = ('status', 'publish')
     view_on_site = False  # 「サイト上で表示」ボタンを非表示
-
-
-    def save_model(self, request, obj, form, change):
-        if not obj.slug:
-            obj.slug = generate_unique_slug(obj.title)
-        super().save_model(request, obj, form, change)
 
 
 @admin.register(Comment)

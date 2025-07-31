@@ -3,6 +3,9 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.urls import reverse
+from django.utils.text import slugify
+import random
+import string
 
 
 class Post(models.Model):
@@ -31,6 +34,30 @@ class Post(models.Model):
     def get_absolute_url(self):
         return reverse('blog:post_detail', kwargs={'slug': self.slug})
 
+    def save(self, *args, **kwargs):
+        """保存時にslugを自動生成（重複チェック付き）"""
+        if not self.slug:
+            # まず通常のslugifyを試す
+            base_slug = slugify(self.title)
+
+            # 空文字列の場合（日本語など）はランダム文字列を生成
+            if not base_slug:
+                base_slug = 'post-' + ''.join(random.choices(
+                    string.ascii_lowercase + string.digits, 
+                    k=8
+                ))
+
+            slug = base_slug
+            counter = 1
+            
+            # 重複チェック
+            while Post.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            
+            self.slug = slug
+        
+        super().save(*args, **kwargs)
 
 class Comment(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments', verbose_name='記事')
