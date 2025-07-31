@@ -46,3 +46,4 @@ Thumbs.db
 htmlcov/
 .tox/
 .pytest_cache/
+pytest.ini.*
