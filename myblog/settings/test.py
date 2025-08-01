@@ -6,6 +6,14 @@ os.environ['ADMIN_URL'] = 'admin/'
 
 from .base import *
 
+# HTTPS リダイレクトを無効化（テスト環境）
+SECURE_SSL_REDIRECT = False
+
+# 他のセキュリティ設定も無効化
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+
+
 # テスト用のデータベース設定
 DATABASES = {
     'default': {
