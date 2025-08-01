@@ -26,5 +26,6 @@ jobs:
     - name: Run Tests
       env:
         DJANGO_SETTINGS_MODULE: myblog.settings.test
+        SECRET_KEY: ${{ secrets.SECRET_KEY }}
       run: |
         pytest blog/tests/ -v --cov=blog --cov-report=term
