@@ -1,3 +1,9 @@
+import os
+os.environ['DEBUG'] = 'False'
+os.environ['SECRET_KEY'] = 'test-secret-key-for-testing-only'
+os.environ['ALLOWED_HOSTS'] = '*'
+os.environ['ADMIN_URL'] = 'admin/'
+
 from .base import *
 
 # テスト用のデータベース設定
@@ -30,11 +36,7 @@ PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.MD5PasswordHasher',
 ]
 
-# テスト時はDEBUGをFalseに
-DEBUG = False
 
-# テスト用のSECRET_KEY（本番とは別の値）
-SECRET_KEY = 'test-secret-key-for-testing-only'
 
 # ログを抑制（テスト実行時の出力をきれいに）
 LOGGING = {
