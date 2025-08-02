@@ -1,7 +1,8 @@
 # Django Blog Application
 
-![CI/CD](https://github.com/org/project/actions/workflows/ci.yml/badge.svg)
-![Coverage](https://img.shields.io/codecov/c/github/org/project)
+![CI/CD](https://github.com/keito-code/django-blog/actions/workflows/django.yml/badge.svg)
+[![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)](https://github.com/keito-code/django-blog)
+
 
 Djangoで作成したブログアプリケーションです。ユーザー認証機能とMarkdown記法に対応しています。
 
