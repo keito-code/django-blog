@@ -1,6 +1,6 @@
 # Django Blog Application
 
-![CI/CD](https://github.com/keito-code/django-blog/actions/workflows/django.yml/badge.svg)
+[![CI/CD](https://github.com/keito-code/django-blog/actions/workflows/django.yml/badge.svg)](https://github.com/keito-code/django-blog/actions)
 [![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)](https://github.com/keito-code/django-blog)
 
 
