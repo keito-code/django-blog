@@ -11,14 +11,14 @@
             
             {% for post in posts %}
                 <article class="mb-4">
-                    <h2><a href="{% url 'blog:post_update' post.pk %}" class="text-decoration-none">{{ post.title }}</a></h2>
+                    <h2><a href="{% url 'blog-web:post_update' post.pk %}" class="text-decoration-none">{{ post.title }}</a></h2>
                     <p class="text-muted">
                         <i class="bi bi-calendar"></i> 作成日: {{ post.created|date:"Y年m月d日" }} | 
                         <i class="bi bi-clock"></i> 更新日: {{ post.updated|date:"Y年m月d日" }}
                     </p>
                     <p>{{ post.content|truncatewords:30|linebreaksbr }}</p>
-                    <a href="{% url 'blog:post_update' post.pk %}" class="btn btn-primary btn-sm">編集</a>
-                    <a href="{% url 'blog:post_delete' post.pk %}" class="btn btn-danger btn-sm">削除</a>
+                    <a href="{% url 'blog-web:post_update' post.pk %}" class="btn btn-primary btn-sm">編集</a>
+                    <a href="{% url 'blog-web:post_delete' post.pk %}" class="btn btn-danger btn-sm">削除</a>
                     <hr>
                 </article>
             {% empty %}
@@ -32,8 +32,8 @@
                     <h5 class="mb-0">メニュー</h5>
                 </div>
                 <div class="card-body">
-                    <a href="{% url 'blog:post_list' %}" class="btn btn-outline-primary btn-sm d-block mb-2">記事一覧</a>
-                    <a href="{% url 'blog:post_create' %}" class="btn btn-outline-success btn-sm d-block">新規投稿</a>
+                    <a href="{% url 'blog-web:post_list' %}" class="btn btn-outline-primary btn-sm d-block mb-2">記事一覧</a>
+                    <a href="{% url 'blog-web:post_create' %}" class="btn btn-outline-success btn-sm d-block">新規投稿</a>
                 </div>
             </div>
         </div>

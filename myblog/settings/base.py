@@ -38,6 +38,9 @@ if os.environ.get('RENDER'):
 # 管理画面のURLを環境変数から取得 (セキュリティ向上)
 ADMIN_URL = config('ADMIN_URL') # 必須にする
 
+# APIのバージョン管理
+API_VERSION = 'v1'
+
 
 # Application definition
 
@@ -52,6 +55,9 @@ INSTALLED_APPS = [
     'axes',
     'blog',
     'accounts',
+    'rest_framework',
+    'django_filters',
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -149,8 +155,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGIN_URL = 'accounts:login'
-LOGIN_REDIRECT_URL = 'blog:post_list'
-LOGOUT_REDIRECT_URL = 'blog:post_list'
+LOGIN_REDIRECT_URL = '/blog/'
+LOGOUT_REDIRECT_URL = '/blog/'
 
 # セキュリティ設定
 if not DEBUG:
@@ -180,16 +186,16 @@ if not DEBUG:
     # SECURE_HSTS_SECONDS = 3600  # 初期設定: 1時間（2025/07/29）
     
     # 段階的延長計画：
-    # フェーズ1: 2025/07/30 - 1日に延長（現在）
-    SECURE_HSTS_SECONDS = 86400  # 24時間
+    # フェーズ1: 2025/07/30 - 1日に延長（完了）
+    # SECURE_HSTS_SECONDS = 86400  # 24時間
     
-    # フェーズ2: 2025/08/06 - 1週間に延長予定
-    # SECURE_HSTS_SECONDS = 604800  # 7日間
+    # フェーズ2: 2025/08/08 - 1週間に延長予定
+    SECURE_HSTS_SECONDS = 604800  # 7日間
     
-    # フェーズ3: 2025/08/13 - 1ヶ月に延長予定
+    # フェーズ3: 2025/08/15 - 1ヶ月に延長予定
     # SECURE_HSTS_SECONDS = 2592000  # 30日間
     
-    # フェーズ4: 2025/09/13 - 1年に延長予定（最終目標）
+    # フェーズ4: 2025/09/15 - 1年に延長予定（最終目標）
     # SECURE_HSTS_SECONDS = 31536000  # 365日間
     
     # 将来的な追加設定（現在は無効）
@@ -260,22 +266,100 @@ LOGS_DIR.mkdir(exist_ok=True)
 
 
 # Content Security Policy (CSP) 設定 (django-csp 4.0+ 形式)
-# レポートオンリーモードで開始（実際のブロックはしない）
 CONTENT_SECURITY_POLICY = {
     'DIRECTIVES': {
         'base-uri': (SELF,),
         'connect-src': (SELF,),
         'default-src': (SELF,),
-        'font-src': (SELF, 'https://stackpath.bootstrapcdn.com', 'https://cdn.jsdelivr.net'),
+        'font-src': (
+            SELF, 
+            'https://stackpath.bootstrapcdn.com', 
+            'https://cdn.jsdelivr.net'
+        ),
         'form-action': (SELF,),
-        'frame-src': ("'none'",),
+        'frame-src': ("'none'",),  
         'img-src': (SELF, 'data:', 'https:'),
-        'object-src': ("'none'",),
+        'object-src': ("'none'",),  
         'report-uri': '/csp-report/',
-        'script-src': (SELF, NONCE, 'https://stackpath.bootstrapcdn.com', 'https://cdn.jsdelivr.net'),
-        'style-src': (SELF, NONCE, 'https://stackpath.bootstrapcdn.com', 'https://cdn.jsdelivr.net')
+        'script-src': (
+            SELF, 
+            NONCE,  # NONCEは維持（スクリプトのセキュリティ）
+            'https://stackpath.bootstrapcdn.com', 
+            'https://cdn.jsdelivr.net'
+        ),
+        'style-src': (
+            SELF, 
+            "'unsafe-inline'",  # DRFの画面表示に必要なため許容
+            'https://stackpath.bootstrapcdn.com', 
+            'https://cdn.jsdelivr.net'
+        )
     },
     'EXCLUDE_URL_PREFIXES': ('/admin/',),
+}
+
+# Django REST Framework設定
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_RENDERER_CLASSES': (
+        'djangorestframework_camel_case.render.CamelCaseJSONRenderer',
+        'djangorestframework_camel_case.render.CamelCaseBrowsableAPIRenderer',
+    ),
+    'DEFAULT_PARSER_CLASSES': (
+        'djangorestframework_camel_case.parser.CamelCaseFormParser',
+        'djangorestframework_camel_case.parser.CamelCaseMultiPartParser',
+        'djangorestframework_camel_case.parser.CamelCaseJSONParser',
+    ),
+    # バージョニング設定
+    'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.URLPathVersioning',
+    'DEFAULT_VERSION': 'v1',
+    'ALLOWED_VERSIONS': ['v1'],
+    # レートリミット設定
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '1000/hour',
+        'user': '10000/hour'
+    },
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+    'TEST_REQUEST_DEFAULT_FORMAT': 'json',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# drf-spectacular設定
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Django Blog API',
+    'DESCRIPTION': 'ブログシステムのREST API',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+
+     'SECURITY': [
+        {'bearerAuth': []}
+    ],
+
+    'SECURITY_SCHEMES': {
+        'bearerAuth': {
+            'type': 'http',
+            'scheme': 'bearer',
+            'bearerFormat': 'JWT',
+        }
+    },
+
+    'POSTPROCESSING_HOOKS': [
+        'drf_spectacular.contrib.djangorestframework_camel_case.camelize_serializer_fields'
+    ],
 }
 
 

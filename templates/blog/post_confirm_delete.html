@@ -21,7 +21,7 @@
                         {% if post.status == 'published' %}
                         <a href="{{ post.get_absolute_url }}" class="btn btn-secondary">キャンセル</a>
                         {% else %}
-                        <a href="{% url 'blog:post_draft_list' %}" class="btn btn-secondary">キャンセル</a>
+                        <a href="{% url 'blog-web:post_draft_list' %}" class="btn btn-secondary">キャンセル</a>
                         {% endif %}
                     </form>
                 </div>

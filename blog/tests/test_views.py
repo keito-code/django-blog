@@ -14,7 +14,7 @@ class TestPostListView:
     def test_post_list_view_status_code(self):
         """記事一覧ページが正しく表示されることをテスト"""
         client = Client()
-        url = reverse('blog:post_list')
+        url = reverse('blog-web:post_list')
         response = client.get(url)
         
         assert response.status_code == 200
@@ -42,7 +42,7 @@ class TestPostListView:
         )
         
         # 記事一覧を取得
-        url = reverse('blog:post_list')
+        url = reverse('blog-web:post_list')
         response = client.get(url)
         
         # 公開済みは表示、下書きは非表示
@@ -65,7 +65,7 @@ class TestPostListView:
             )
         
         # 最初のページ
-        url = reverse('blog:post_list')
+        url = reverse('blog-web:post_list')
         response = client.get(url)
         
         # 10件表示されることを確認
@@ -92,7 +92,7 @@ class TestPostDetailView:
             status='published'
         )
         
-        url = reverse('blog:post_detail', kwargs={'slug': post.slug})
+        url = reverse('blog-web:post_detail', kwargs={'slug': post.slug})
         response = client.get(url)
         
         assert response.status_code == 200
@@ -112,7 +112,7 @@ class TestPostDetailView:
             status='draft'
         )
         
-        url = reverse('blog:post_detail', kwargs={'slug': post.slug})
+        url = reverse('blog-web:post_detail', kwargs={'slug': post.slug})
         response = client.get(url)
 
         assert response.status_code == 404   
@@ -123,7 +123,7 @@ class TestPostCreateView:
     def test_post_create_requires_login(self):
         """記事作成にはログインが必要なことをテスト"""
         client = Client()
-        url = reverse('blog:post_create')
+        url = reverse('blog-web:post_create')
         response = client.get(url)
         
         # ログインページにリダイレクトされる
@@ -139,7 +139,7 @@ class TestPostCreateView:
         )
         client.login(username='testuser', password='testpass123')
         
-        url = reverse('blog:post_create')
+        url = reverse('blog-web:post_create')
         response = client.get(url)
         
         assert response.status_code == 200
@@ -155,7 +155,7 @@ class TestPostCreateView:
         )
         client.login(username='testuser', password='testpass123')
         
-        url = reverse('blog:post_create')
+        url = reverse('blog-web:post_create')
         data = {
             'title': '新しい記事',
             'content': '記事の内容',
@@ -188,7 +188,7 @@ class TestPostUpdateView:
             content='内容'
         )
         
-        url = reverse('blog:post_update', kwargs={'pk': post.pk})
+        url = reverse('blog-web:post_update', kwargs={'pk': post.pk})
         response = client.get(url)
         
         assert response.status_code == 302
@@ -211,7 +211,7 @@ class TestPostUpdateView:
         client.login(username='author', password='testpass123')
         
         # GET: フォーム表示
-        url = reverse('blog:post_update', kwargs={'pk': post.pk})
+        url = reverse('blog-web:post_update', kwargs={'pk': post.pk})
         response = client.get(url)
         assert response.status_code == 200
         assert '記事編集' in response.content.decode()
@@ -252,12 +252,12 @@ class TestPostUpdateView:
         
         client.login(username='other', password='testpass123')
         
-        url = reverse('blog:post_update', kwargs={'pk': post.pk})
+        url = reverse('blog-web:post_update', kwargs={'pk': post.pk})
         response = client.get(url)
         
         # リダイレクトされる（権限エラー）
         assert response.status_code == 302
-        assert response.url == reverse('blog:post_list')
+        assert response.url == reverse('blog-web:post_list')
 
 
 @pytest.mark.django_db
@@ -275,7 +275,7 @@ class TestCommentPostView:
             status='published'
         )
         
-        url = reverse('blog:post_detail', kwargs={'slug': post.slug})
+        url = reverse('blog-web:post_detail', kwargs={'slug': post.slug})
         response = client.get(url)
         
         assert response.status_code == 200
@@ -295,7 +295,7 @@ class TestCommentPostView:
         )
         
         # コメントを投稿
-        url = reverse('blog:post_detail', kwargs={'slug': post.slug})
+        url = reverse('blog-web:post_detail', kwargs={'slug': post.slug})
         comment_data = {
             'name': '山田太郎',
             'email': 'yamada@example.com',
@@ -337,7 +337,7 @@ class TestCommentPostView:
         )
         
         # 記事詳細ページを表示
-        url = reverse('blog:post_detail', kwargs={'slug': post.slug})
+        url = reverse('blog-web:post_detail', kwargs={'slug': post.slug})
         response = client.get(url)
         
         # コメントが表示されていることを確認
@@ -367,7 +367,7 @@ class TestCommentPostView:
         )
         
         # 記事詳細ページを表示
-        url = reverse('blog:post_detail', kwargs={'slug': post.slug})
+        url = reverse('blog-web:post_detail', kwargs={'slug': post.slug})
         response = client.get(url)
         
         # 非アクティブなコメントは表示されない
@@ -382,7 +382,7 @@ class TestPostSearchView:
     def test_search_form_displayed(self):
         """検索フォームが表示されることをテスト"""
         client = Client()
-        url = reverse('blog:post_search')
+        url = reverse('blog-web:post_search')
         response = client.get(url)
         
         assert response.status_code == 200
@@ -415,7 +415,7 @@ class TestPostSearchView:
         )
         
         # "Django"で検索
-        url = reverse('blog:post_search')
+        url = reverse('blog-web:post_search')
         response = client.get(url, {'query': 'Django'})
         
         assert response.status_code == 200
@@ -442,7 +442,7 @@ class TestPostSearchView:
         )
         
         # "テスト駆動"で検索
-        url = reverse('blog:post_search')
+        url = reverse('blog-web:post_search')
         response = client.get(url, {'query': 'テスト駆動'})
         
         assert response.status_code == 200
@@ -469,7 +469,7 @@ class TestPostSearchView:
         )
         
         # "Django"で検索
-        url = reverse('blog:post_search')
+        url = reverse('blog-web:post_search')
         response = client.get(url, {'query': 'Django'})
         
         assert response.status_code == 200
@@ -480,7 +480,7 @@ class TestPostSearchView:
         """検索結果がない場合のテスト"""
         client = Client()
         
-        url = reverse('blog:post_search')
+        url = reverse('blog-web:post_search')
         response = client.get(url, {'query': '存在しないキーワード'})
         
         assert response.status_code == 200
@@ -494,7 +494,7 @@ class TestCSPReportView:
     def test_csp_report_valid_json(self):
         """有効なCSPレポートを処理できることをテスト"""
         client = Client()
-        url = reverse('blog:csp_report')
+        url = reverse('blog-web:csp_report')
         
         csp_data = {
             'csp-report': {
@@ -530,7 +530,7 @@ class TestCSPReportView:
     def test_csp_report_invalid_json(self):
         """無効なJSONの場合400エラーを返すことをテスト"""
         client = Client()
-        url = reverse('blog:csp_report')
+        url = reverse('blog-web:csp_report')
         
         response = client.post(
             url,
@@ -544,7 +544,7 @@ class TestCSPReportView:
     def test_csp_report_empty_json(self):
         """空のJSONでもエラーにならないことをテスト"""
         client = Client()
-        url = reverse('blog:csp_report')
+        url = reverse('blog-web:csp_report')
         
         response = client.post(
             url,
@@ -558,7 +558,7 @@ class TestCSPReportView:
     def test_csp_report_with_proxy_headers(self):
         """プロキシ経由のIPアドレスが正しく記録されることをテスト"""
         client = Client()
-        url = reverse('blog:csp_report')
+        url = reverse('blog-web:csp_report')
         
         csp_data = {
             'csp-report': {
@@ -595,7 +595,7 @@ class TestPostDeleteView:
             content='内容'
         )
         
-        url = reverse('blog:post_delete', kwargs={'pk': post.pk})
+        url = reverse('blog-web:post_delete', kwargs={'pk': post.pk})
         response = client.get(url)
         
         assert response.status_code == 302
@@ -616,7 +616,7 @@ class TestPostDeleteView:
         
         client.login(username='author', password='testpass123')
         
-        url = reverse('blog:post_delete', kwargs={'pk': post.pk})
+        url = reverse('blog-web:post_delete', kwargs={'pk': post.pk})
         response = client.get(url)
         
         assert response.status_code == 200
@@ -642,12 +642,12 @@ class TestPostDeleteView:
         assert Post.objects.filter(pk=post.pk).exists()
         
         # POST で削除実行
-        url = reverse('blog:post_delete', kwargs={'pk': post.pk})
+        url = reverse('blog-web:post_delete', kwargs={'pk': post.pk})
         response = client.post(url)
         
         # リダイレクトされることを確認
         assert response.status_code == 302
-        assert response.url == reverse('blog:post_list')
+        assert response.url == reverse('blog-web:post_list')
         
         # 記事が削除されていることを確認
         assert not Post.objects.filter(pk=post.pk).exists()
@@ -670,12 +670,12 @@ class TestPostDeleteView:
         client.login(username='other', password='testpass123')
         
         # GET: 削除ページへのアクセス
-        url = reverse('blog:post_delete', kwargs={'pk': post.pk})
+        url = reverse('blog-web:post_delete', kwargs={'pk': post.pk})
         response = client.get(url)
         
         # 権限エラーでリダイレクト
         assert response.status_code == 302
-        assert response.url == reverse('blog:post_list')
+        assert response.url == reverse('blog-web:post_list')
         
         # 記事はまだ存在する
         assert Post.objects.filter(pk=post.pk).exists()
@@ -699,7 +699,7 @@ class TestPostDeleteView:
         client.login(username='staff', password='testpass123')
         
         # POST で削除実行
-        url = reverse('blog:post_delete', kwargs={'pk': post.pk})
+        url = reverse('blog-web:post_delete', kwargs={'pk': post.pk})
         response = client.post(url)
         
         # 削除成功
@@ -713,7 +713,7 @@ class TestPostDraftListView:
     def test_draft_list_requires_login(self):
         """下書き一覧にはログインが必要なことをテスト"""
         client = Client()
-        url = reverse('blog:post_draft_list')
+        url = reverse('blog-web:post_draft_list')
         response = client.get(url)
         
         assert response.status_code == 302
@@ -761,7 +761,7 @@ class TestPostDraftListView:
         # user1でログイン
         client.login(username='user1', password='testpass123')
         
-        url = reverse('blog:post_draft_list')
+        url = reverse('blog-web:post_draft_list')
         response = client.get(url)
         
         assert response.status_code == 200
@@ -783,7 +783,7 @@ class TestPostDraftListView:
         
         client.login(username='user', password='testpass123')
         
-        url = reverse('blog:post_draft_list')
+        url = reverse('blog-web:post_draft_list')
         response = client.get(url)
         
         assert response.status_code == 200
@@ -807,12 +807,12 @@ class TestPostDraftListView:
         client.login(username='other', password='testpass123')
         
         # GET: 削除ページへのアクセス
-        url = reverse('blog:post_delete', kwargs={'pk': post.pk})
+        url = reverse('blog-web:post_delete', kwargs={'pk': post.pk})
         response = client.get(url)
         
         # 権限エラーでリダイレクト
         assert response.status_code == 302
-        assert response.url == reverse('blog:post_list')
+        assert response.url == reverse('blog-web:post_list')
         
         # 記事はまだ存在する
         assert Post.objects.filter(pk=post.pk).exists()
@@ -836,7 +836,7 @@ class TestPostDraftListView:
         client.login(username='staff', password='testpass123')
         
         # POST で削除実行
-        url = reverse('blog:post_delete', kwargs={'pk': post.pk})
+        url = reverse('blog-web:post_delete', kwargs={'pk': post.pk})
         response = client.post(url)
         
         # 削除成功

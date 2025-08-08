@@ -1,14 +1,16 @@
-# Django Blog Application
+# Secure Django Blog 
 
 [![CI/CD](https://github.com/keito-code/django-blog/actions/workflows/django.yml/badge.svg)](https://github.com/keito-code/django-blog/actions)
 [![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)](https://github.com/keito-code/django-blog)
 
 
-Djangoで作成したブログアプリケーションです。ユーザー認証機能とMarkdown記法に対応しています。
+Django REST Framework APIとWebアプリケーションの両方を実装
 
-## 🌐 デモサイト
+## 🌐 デモサイト & APIドキュメント
 
-**URL**: https://django-blog-ox35.onrender.com
+**デモサイトURL**: https://django-blog-ox35.onrender.com
+**APIドキュメント (Swagger UI)**: https://django-blog-ox35.onrender.com/api/v1/schema/swagger-ui/
+
 
 ### 利用可能な機能
 - ユーザー登録（`/accounts/register/`）
@@ -167,6 +169,7 @@ ADMIN_URL=your-admin-url  # 必須：管理画面のURLパス
 
 ## 📝 今後の改善予定
 
+- [ ] Reactによるフロントエンドの構築
 - [ ] 画像アップロード機能
 - [ ] タグ・カテゴリ機能
 - [ ] いいね機能

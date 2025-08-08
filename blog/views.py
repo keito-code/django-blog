@@ -90,7 +90,7 @@ def post_create(request):
                 messages.success(request, '記事が公開されました。')
             else:
                 messages.success(request, '記事が下書きとして保存されました。')
-            return redirect('blog:post_list')
+            return redirect('blog-web:post_list')
     else:
         form = PostForm()
     return render(request, 'blog/post_form.html', {'form': form, 'title': '新規投稿'})
@@ -103,7 +103,7 @@ def post_update(request, pk):
     # 作者本人または管理者のみ編集可能
     if post.author != request.user and not request.user.is_staff:
         messages.error(request, 'この記事を編集する権限がありません。')
-        return redirect('blog:post_list')
+        return redirect('blog-web:post_list')
 
     if request.method == 'POST':
         form = PostForm(request.POST, instance=post)
@@ -122,12 +122,12 @@ def post_update(request, pk):
                 post.status = 'draft'
                 post.save()
                 messages.success(request, '下書きを保存しました。')
-                return redirect('blog:post_update', pk=post.pk)
+                return redirect('blog-web:post_update', pk=post.pk)
             else:  # 'save' またはその他
                 # statusは変更せず、現在の状態を維持
                 post.save()
                 messages.success(request, '記事を保存しました。')
-                return redirect('blog:post_update', pk=post.pk)
+                return redirect('blog-web:post_update', pk=post.pk)
       
     else:
         form = PostForm(instance=post)
@@ -146,11 +146,11 @@ def post_delete(request, pk):
     # 作者本人または管理者のみ削除可能
     if post.author != request.user and not request.user.is_staff:
         messages.error(request, 'この記事を削除する権限がありません。')
-        return redirect('blog:post_list')
+        return redirect('blog-web:post_list')
     if request.method == 'POST':
         post.delete()
         messages.success(request, '記事が削除されました。')
-        return redirect('blog:post_list')
+        return redirect('blog-web:post_list')
     return render(request, 'blog/post_confirm_delete.html', {'post': post})
 
 

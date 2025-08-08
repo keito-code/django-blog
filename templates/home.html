@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block title %}Developer Portal - Django Blog API{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-info" role="alert">
+                <h4 class="alert-heading">仮のトップページ</h4>
+                <p>このページは開発者ポータルとして機能する仮のトップページです。将来的にフロントエンドアプリケーションに置き換えられる予定です。</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-4">Django Blog API</h1>
+            <p class="lead">バックエンドAPIサービス - 開発者ポータル</p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">開発ステータス</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td><strong>バックエンド API</strong></td>
+                                <td><span class="badge bg-success">稼働中</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>フロントエンド</strong></td>
+                                <td><span class="badge bg-warning text-dark">開発中</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">ユーザー向けリソース</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <a href="{% url 'blog-web:post_list' %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-list"></i> ブログ一覧
+                            </a>
+                        </li>
+                        {% if user.is_staff %}
+                        <li class="mb-2">
+                            <a href="/admin/" class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-cog"></i> 管理画面
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">開発者向けリソース</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6>APIドキュメント</h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <a href="/api/v1/schema/swagger-ui/" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-file-code"></i> Swagger UI
+                                    </a>
+                                </li>
+                                <li class="mb-2">
+                                    <a href="/api/v1/schema/redoc/" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-book"></i> ReDoc
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-8">
+                            <h6>主要なAPIエンドポイント</h6>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>エンドポイント</th>
+                                        <th>説明</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>/api/v1/blog/posts/</code></td>
+                                        <td>ブログ記事のCRUD操作。<br>（例: <code>?search=キーワード</code> で検索も可能です）</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>/api/v1/blog/token/</code></td>
+                                        <td>JWT認証トークンの取得</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>/api/v1/blog/token/refresh/</code></td>
+                                        <td>JWTトークンのリフレッシュ</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">API クイックスタート</h5>
+                </div>
+                <div class="card-body">
+                    <h6>JWT認証の使い方</h6>
+                    <ol>
+                        <li class="mb-3">
+                            <strong>トークンの取得</strong>
+                            <pre class="bg-light p-2"><code>POST /api/v1/blog/token/
+Content-Type: application/json
+
+{
+    "username": "your_username",
+    "password": "your_password"
+}</code></pre>
+                        </li>
+                        <li class="mb-3">
+                            <strong>APIリクエストでトークンを使用</strong>
+                            <pre class="bg-light p-2"><code>GET /api/v1/blog/posts/
+Authorization: Bearer &lt;your_access_token&gt;</code></pre>
+                        </li>
+                        <li>
+                            <strong>トークンのリフレッシュ</strong>
+                            <pre class="bg-light p-2"><code>POST /api/v1/blog/token/refresh/
+Content-Type: application/json
+
+{
+    "refresh": "&lt;your_refresh_token&gt;"
+}</code></pre>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-secondary" role="alert">
+                <h6 class="alert-heading">開発者向け情報</h6>
+                <ul class="mb-0">
+                    <li>このAPIはDjango REST Frameworkで構築されています</li>
+                    <li>認証にはJWT (JSON Web Token) を使用しています</li>
+                    <li>詳細なAPI仕様はSwagger UIまたはReDocでご確認ください</li>
+                    <li>フロントエンド開発者の方は、上記のAPIエンドポイントを使用してアプリケーションを構築してください</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

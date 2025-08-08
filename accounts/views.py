@@ -19,7 +19,7 @@ def signup(request):
             user = authenticate(username=username, password=password)
             login(request, user)
             messages.success(request, 'アカウントが作成されました。ようこそ！')
-            return redirect('blog:post_list')
+            return redirect('blog-web:post_list')
     else:
         form = SignUpForm()
     return render(request, 'accounts/signup.html', {'form': form})
@@ -28,7 +28,7 @@ def signup(request):
 def logout_view(request):
     logout(request)
     messages.success(request, 'ログアウトしました。')
-    return redirect('blog:post_list')
+    return redirect('blog-web:post_list')
 
 @axes_dispatch  # デコレータを追加
 def login_view(request):
@@ -51,7 +51,7 @@ def login_view(request):
                 else:
                     login(request, user)
                     messages.success(request, 'ログインしました。')
-                    return redirect('blog:post_list')
+                    return redirect('blog-web:post_list')
     else:
         form = AuthenticationForm()
     return render(request, 'accounts/login.html', {'form': form})

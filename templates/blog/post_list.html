@@ -20,7 +20,7 @@
                     <a href="{{ post.get_absolute_url }}" class="btn btn-primary btn-sm">続きを読む</a>
                     {% if user.is_authenticated %}
                         {% if post.author == user or user.is_staff %}
-                            <a href="{% url 'blog:post_update' post.pk %}" class="btn btn-secondary btn-sm">編集</a>
+                            <a href="{% url 'blog-web:post_update' post.pk %}" class="btn btn-secondary btn-sm">編集</a>
                         {% endif %}
                     {% endif %}
                     <hr>
@@ -66,7 +66,7 @@
                     <h5 class="mb-0">検索</h5>
                 </div>
                 <div class="card-body">
-                    <form method="get" action="{% url 'blog:post_search' %}">
+                    <form method="get" action="{% url 'blog-web:post_search' %}">
                         <div class="input-group">
                             <input type="text" name="query" class="form-control" placeholder="検索...">
                             <button class="btn btn-primary" type="submit">
@@ -83,7 +83,7 @@
                         <h5 class="mb-0">マイメニュー</h5>
                     </div>
                     <div class="card-body">
-                        <a href="{% url 'blog:post_draft_list' %}" class="btn btn-outline-secondary btn-sm mb-2 d-block">
+                        <a href="{% url 'blog-web:post_draft_list' %}" class="btn btn-outline-secondary btn-sm mb-2 d-block">
                             下書き一覧
                         </a>
                     </div>
