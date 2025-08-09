@@ -15,6 +15,7 @@ import os
 import dj_database_url
 from decouple import config, Csv
 from csp.constants import NONCE, SELF
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -25,6 +26,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('SECRET_KEY') # defaultを削除
+
+JWT_SECRET_KEY = config('JWT_SECRET_KEY')  # defaultなし
+
+SIMPLE_JWT = {
+    'SIGNING_KEY': JWT_SECRET_KEY,
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+}
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', cast=bool)
@@ -56,6 +67,7 @@ INSTALLED_APPS = [
     'blog',
     'accounts',
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
     'django_filters',
     'drf_spectacular',
 ]
