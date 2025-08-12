@@ -25,11 +25,13 @@ from myblog.views import RelaxedSpectacularSwaggerView, RelaxedSpectacularRedocV
 urlpatterns = [
     path('', HomeView.as_view(), name='home'),
     path(f'{settings.ADMIN_URL}', admin.site.urls), # 動的な管理画面URL
-    path('accounts/', include(('accounts.urls', 'accounts'), namespace='accounts')),
+    path('accounts/', include(('accounts.urls_web', 'accounts'), namespace='accounts')),
     # ブログのWeb画面は /blog/ 以下に配置
     path('blog/', include(('blog.urls', 'blog-web'), namespace='blog-web')),
     # ブログのAPIは /api/v1/blog/ 以下に配置
     path('api/v1/blog/', include(('blog.api.v1.urls', 'blog-api'), namespace='blog-api')),
+    # 認証APIは /api/v1/auth/ 以下に配置
+    path('api/v1/auth/', include('accounts.urls')),
     # APIドキュメント
     path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/v1/schema/swagger-ui/', RelaxedSpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
