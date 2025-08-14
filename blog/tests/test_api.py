@@ -151,7 +151,7 @@ class TestPostDetailAPI:
         assert response.data['id'] == post.id
         assert response.data['title'] == 'テスト記事'
         assert response.data['content'] == 'テスト内容'
-        assert response.data['author'] == self.user.username
+        assert response.data['author']['username'] == self.user.username
         assert 'publish' in response.data
         assert 'slug' in response.data
 

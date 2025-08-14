@@ -27,15 +27,39 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['email'] = user.email
         return token
 
-
-class UserSerializer(serializers.ModelSerializer):
-    is_staff = serializers.BooleanField(read_only=True)
-
+class PublicUserSerializer(serializers.ModelSerializer):
+    """一般公開用のユーザー情報シリアライザー（セキュアバージョン）"""
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'date_joined', 'is_staff')
-        read_only_fields = ('id', 'date_joined', 'is_staff')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'date_joined')
+        read_only_fields = ('id', 'date_joined')
+        # is_staffは意図的に除外
 
+
+class PrivateUserSerializer(serializers.ModelSerializer):
+    """プライベート用のユーザー情報シリアライザー（自分の情報を見る時）"""
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 
+                 'date_joined', 'last_login', 'is_active')
+        read_only_fields = ('id', 'date_joined', 'last_login', 'is_active')
+        # is_staffは含めない
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """管理者用のユーザー情報シリアライザー（管理画面でのみ使用）"""
+    is_staff = serializers.BooleanField(read_only=True)
+    is_superuser = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 
+                 'date_joined', 'last_login', 'is_active', 'is_staff', 'is_superuser')
+        read_only_fields = ('id', 'date_joined', 'last_login', 'is_staff', 'is_superuser')
+
+
+# 後方互換性のため（既存のコードが動くように）
+UserSerializer = PublicUserSerializer
 
 class RegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(

@@ -1,14 +1,14 @@
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework import viewsets, filters, status
+from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
 from .models import Post
 from .serializers import PostListSerializer, PostDetailSerializer
 from .permissions import IsAuthorOrReadOnly
-
-
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.utils import timezone
 
 class CustomPageNumberPagination(PageNumberPagination):
     """カスタムページネーション"""
@@ -86,5 +86,115 @@ class PostViewSet(viewsets.ModelViewSet):
         記事作成時に作成者を自動設定
         """
         serializer.save(author=self.request.user)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def my_posts(self, request):
+        """
+        現在のユーザーの投稿一覧を取得
+        
+        認証が必要です。
+        """
+        posts = self.get_queryset().filter(author=request.user)
+        page = self.paginate_queryset(posts)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(posts, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def drafts(self, request):
+        """
+        現在のユーザーの下書き一覧を取得
+        
+        認証が必要です。
+        """
+        drafts = self.get_queryset().filter(author=request.user, status='draft')
+        page = self.paginate_queryset(drafts)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(drafts, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def publish(self, request, pk=None):
+        """
+        下書きを公開状態に変更
+        
+        投稿の作者のみが実行可能です。
+        """
+        # 投稿取得
+        post = self.get_object()
+
+        # 権限チェック
+        if post.author != request.user:
+            return Response(
+                {'detail': 'この投稿を公開する権限がありません。'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # ステータスチェック
+        if post.status == 'published':
+            return Response(
+                {'detail': 'この投稿は既に公開されています。'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 公開処理
+        post.status = 'published'
+        
+        # 保存
+        post.save(update_fields=['status', 'updated'])
+
+        # レスポンス
+        serializer = self.get_serializer(post)
+        return Response(
+            {
+                'message': '投稿を公開しました。',
+                'post': serializer.data
+            },
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def unpublish(self, request, pk=None):
+        """
+        公開投稿を下書きに戻す
+        
+        投稿の作者のみが実行可能です。
+        """
+        post = self.get_object()
+        
+        if post.author != request.user:
+            return Response(
+                {'detail': 'この投稿を非公開にする権限がありません。'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        if post.status == 'draft':
+            return Response(
+                {'detail': 'この投稿は既に下書き状態です。'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        post.status = 'draft'
+        post.save(update_fields=['status', 'updated'])
+        
+        serializer = self.get_serializer(post)
+        return Response(
+            {
+                'message': '投稿を下書きに戻しました。',
+                'post': serializer.data
+            },
+            status=status.HTTP_200_OK
+        )
+
+
+
+
+
+
+
 
 

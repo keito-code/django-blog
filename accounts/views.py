@@ -7,10 +7,14 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken  # ← ここでimport
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 from .serializers import (
     CustomTokenObtainPairSerializer,
-    UserSerializer,
-    RegisterSerializer
+    RegisterSerializer,
+    PublicUserSerializer,      
+    PrivateUserSerializer,      
+    AdminUserSerializer,        
+    UserSerializer
 )
 
 User = get_user_model()
@@ -30,21 +34,22 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 {'detail': 'ユーザー名またはパスワードが正しくありません'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
-        
-        # userデータは辞書形式
-        response_data = serializer.validated_data
-        user_data = response_data.get('user', {})
-        
-        # 辞書からis_staffを取得
-        if user_data and (user_data.get('is_staff') or user_data.get('is_superuser')):
-            return Response(
-                {'detail': '管理者アカウントではブログシステムにログインできません'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        return Response(response_data, status=status.HTTP_200_OK)
 
-
+         # ユーザーオブジェクトを直接取得してチェック
+        username = request.data.get('username')
+        try:
+            user = User.objects.get(username=username)
+            if user.is_staff or user.is_superuser:
+                return Response(
+                    {'detail': '管理者アカウントではブログシステムにログインできません'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        except User.DoesNotExist:
+            pass  # ユーザーが見つからない場合は通常のエラーで処理
+        
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        
+        
 class RegisterView(APIView):
     permission_classes = [AllowAny]
     serializer_class = RegisterSerializer  # ← drf-spectacularの警告対策
@@ -55,7 +60,7 @@ class RegisterView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             
-            # Userオブジェクトなのでそのままチェック可能
+            # 管理者アカウントの登録を防ぐ
             if user.is_staff or user.is_superuser:
                 user.delete()
                 return Response(
@@ -66,7 +71,7 @@ class RegisterView(APIView):
             refresh = RefreshToken.for_user(user)
             
             return Response({
-                'user': UserSerializer(user).data,
+                'user': PublicUserSerializer(user).data,
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
             }, status=status.HTTP_201_CREATED)
@@ -106,20 +111,57 @@ class LogoutView(APIView):
 
 class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = UserSerializer  # ← drf-spectacularの警告対策
+    serializer_class = PrivateUserSerializer
 
     def get(self, request):
-        serializer = UserSerializer(request.user)
+        # 自分の情報なのでPrivateUserSerializerを使用
+        if request.user.is_staff:
+            serializer = AdminUserSerializer(request.user)
+        else:
+            serializer = PrivateUserSerializer(request.user)
         return Response(serializer.data)
 
     def put(self, request):
-        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        # 更新時もPrivateUserSerializerを使用
+        if request.user.is_staff:
+            serializer = AdminUserSerializer(request.user, data=request.data, partial=True)
+        else:
+            serializer = PrivateUserSerializer(request.user, data=request.data, partial=True)
+        
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
+@extend_schema(
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'token': {'type': 'string', 'description': 'JWTアクセストークン'}
+            },
+            'required': ['token']
+        }
+    },
+    responses={
+        200: OpenApiResponse(
+            description="トークンは有効です",
+            response={
+                'type': 'object',
+                'properties': {
+                    'valid': {'type': 'boolean'},
+                    'user': {'type': 'object', 'description': 'ユーザー情報（オプション）'}
+                }
+            }
+        ),
+        400: OpenApiResponse(description="トークンが必要です"),
+        401: OpenApiResponse(description="トークンが無効です"),
+        403: OpenApiResponse(description="管理者トークンは無効です")
+    },
+    summary="トークン検証",
+    description="JWTアクセストークンの有効性を検証します",
+    
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_token(request):
@@ -148,7 +190,7 @@ def verify_token(request):
                     )
                 return Response({
                     'valid': True,
-                    'user': UserSerializer(user).data
+                    'user': PublicUserSerializer(user).data
                 }, status=status.HTTP_200_OK)
             except User.DoesNotExist:
                 pass

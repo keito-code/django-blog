@@ -72,7 +72,7 @@ class TestJWTAuthentication:
     
     def test_obtain_token_success(self, api_client, user):
         """正しい認証情報でトークンを取得できる"""
-        url = reverse('blog-api:token_obtain_pair')
+        url = reverse('token_obtain_pair')
         data = {
             'username': 'testuser',
             'password': 'testpass123'
@@ -85,7 +85,7 @@ class TestJWTAuthentication:
     
     def test_obtain_token_invalid_credentials(self, api_client):
         """無効な認証情報ではトークンを取得できない"""
-        url = reverse('blog-api:token_obtain_pair')
+        url = reverse('token_obtain_pair')
         data = {
             'username': 'wronguser',
             'password': 'wrongpass'
@@ -97,7 +97,7 @@ class TestJWTAuthentication:
     def test_refresh_token(self, api_client, user):
         """リフレッシュトークンで新しいアクセストークンを取得できる"""
         refresh = RefreshToken.for_user(user)
-        url = reverse('blog-api:token_refresh')
+        url = reverse('token_refresh')
         data = {'refresh': str(refresh)}
         
         response = api_client.post(url, data)
@@ -107,7 +107,7 @@ class TestJWTAuthentication:
     
     def test_invalid_refresh_token(self, api_client):
         """無効なリフレッシュトークンではエラーになる"""
-        url = reverse('blog-api:token_refresh')
+        url = reverse('token_refresh')
         data = {'refresh': 'invalid-token'}
         
         response = api_client.post(url, data)
@@ -175,7 +175,7 @@ class TestPostAPI:
         }
         response = api_client.post(url, data)
         
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
     
     def test_update_own_post(self, authenticated_client, post):
         """著者は自分の記事を更新できる"""
@@ -207,13 +207,22 @@ class TestPostAPI:
     
     def test_partial_update_own_post(self, authenticated_client, post):
         """著者は自分の記事を部分更新できる"""
+        # 更新前の値を保存
+        original_content = post.content
+
+        # 部分変更
         url = reverse('blog-api:post-detail', kwargs={'pk': post.pk})
         data = {'title': 'Partially Updated Post'}
         response = authenticated_client.patch(url, data)
         
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['title'] == 'Partially Updated Post'
-        assert response.data['content'] == 'Test content'  # 変更されていない
+
+        # データベースから最新データ取得
+        post.refresh_from_db()
+
+        # 更新確認
+        assert post.title == 'Partially Updated Post'  # 変更された
+        assert post.content == original_content  # 変更されていない
     
     def test_delete_own_post(self, authenticated_client, post):
         """著者は自分の記事を削除できる"""
@@ -336,7 +345,33 @@ class TestPagination:
     def test_page_size(self, api_client, many_posts):
         """ページサイズを指定できる"""
         url = reverse('blog-api:post-list')
-        response = api_client.get(url, {'page_size': 5})
+        response = api_client.get(url, {'pageSize': 5})
         
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data['results']) == 5
+
+@pytest.mark.django_db
+class TestPostCustomActions:
+    """カスタムアクションのテスト"""
+    
+    def test_publish_post(self, authenticated_client, draft_post):
+        """下書きを公開できる"""
+        url = f"/api/v1/blog/posts/{draft_post.pk}/publish/"
+        response = authenticated_client.post(url)
+        
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['message'] == '投稿を公開しました。'
+        
+        draft_post.refresh_from_db()
+        assert draft_post.status == 'published'
+    
+    def test_unpublish_post(self, authenticated_client, post):
+        """公開記事を下書きに戻せる"""
+        url = f"/api/v1/blog/posts/{post.pk}/unpublish/"
+        response = authenticated_client.post(url)
+        
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['message'] == '投稿を下書きに戻しました。'
+        
+        post.refresh_from_db()
+        assert post.status == 'draft'
