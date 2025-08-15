@@ -163,7 +163,7 @@ class TestPostAPI:
         
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data['title'] == 'New Post'
-        assert response.data['author'] == authenticated_client.user.username
+        assert response.data['author']['username'] == authenticated_client.user.username
     
     def test_create_post_unauthenticated(self, api_client):
         """未認証では記事を作成できない"""
