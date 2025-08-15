@@ -77,7 +77,8 @@ class PostViewSet(viewsets.ModelViewSet):
         """
         アクションに応じてシリアライザーを選択
         """
-        if self.action == 'retrieve':
+        if self.action in ['retrieve', 'create', 'update', 'partial_update']:
+            # 詳細取得、作成、更新時はDetailSerializerを使用
             return PostDetailSerializer
         return self.serializer_class
     
