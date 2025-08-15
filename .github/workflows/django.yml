@@ -27,6 +27,11 @@ jobs:
       env:
         DJANGO_SETTINGS_MODULE: myblog.settings.test
         SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+        ADMIN_URL: admin
+        DEBUG: 'True'
+        ALLOWED_HOSTS: 'localhost,127.0.0.1'
+        DATABASE_URL: 'sqlite:///db.sqlite3'
       run: |
         pytest blog/tests/ -v --cov=blog --cov-report=term
 
