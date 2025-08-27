@@ -29,6 +29,7 @@ RESTful APIとWebビューを提供するブログアプリケーション
   - REST API（認証・CRUD）
   - JWT認証システム
   - CORS設定（Vercel対応）
+  - 検索機能
   
 - 🚧 **開発中**
   - [Next.jsフロントエンド](https://blog-frontend-ten-xi.vercel.app)
@@ -43,11 +44,14 @@ RESTful APIとWebビューを提供するブログアプリケーション
 - `GET /user/` - ユーザー情報取得
 
 ### ブログ (`/api/v1/blog/posts/`)
-- `GET /` - 記事一覧
+- `GET /` - 記事一覧 (検索対応:?search=keyword)
 - `POST /` - 記事作成（要認証）
-- `GET /{id}/` - 記事詳細
-- `PUT /{id}/` - 記事更新（要認証・作者のみ）
-- `DELETE /{id}/` - 記事削除（要認証・作者のみ）
+- `GET /{slug}/` - 記事詳細 (slugで取得)
+- `PUT /{slug}/` - 記事更新（要認証・作者のみ）
+- `DELETE /{slug}/` - 記事削除（要認証・作者のみ）
+- `POST /{slug}/publish/` - 記事公開 (要認証・作者のみ)
+- `POST /{slug}/unpublish/` - 記事非公開 (要認証・作者のみ)
+
 
 詳細な仕様は[Swagger UI](https://django-blog-ox35.onrender.com/api/v1/schema/swagger-ui/)を参照
 
@@ -99,8 +103,8 @@ python manage.py shell
 
 ## 📝 今後のAPI拡張予定
 
-- [ ] 検索API
 - [ ] ページネーションAPI
+- [ ] コメント機能API
 - [ ] 画像アップロードAPI
 - [ ] タグ・カテゴリAPI
 - [ ] いいね機能API

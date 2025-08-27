@@ -57,6 +57,7 @@ class PostViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created', 'updated', 'publish']
     ordering = ['-created']
     pagination_class = CustomPageNumberPagination
+    lookup_field = 'slug'
     
     def get_queryset(self):
         """
@@ -119,7 +120,7 @@ class PostViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def publish(self, request, pk=None):
+    def publish(self, request, slug=None):
         """
         下書きを公開状態に変更
         
@@ -159,7 +160,7 @@ class PostViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def unpublish(self, request, pk=None):
+    def unpublish(self, request, slug=None):
         """
         公開投稿を下書きに戻す
         

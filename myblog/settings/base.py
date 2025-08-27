@@ -31,8 +31,8 @@ JWT_SECRET_KEY = config('JWT_SECRET_KEY')  # defaultなし
 
 SIMPLE_JWT = {
     'SIGNING_KEY': JWT_SECRET_KEY,
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=2),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
 }
@@ -183,12 +183,13 @@ if not DEBUG:
     
     # コンテンツタイプの推測を防ぐ
     SECURE_CONTENT_TYPE_NOSNIFF = True  # IEのコンテンツ自動判定を無効化
-    
-    # XSSフィルター（レガシー、最新ブラウザでは不要）
-    SECURE_BROWSER_XSS_FILTER = True
-    
-    # HTTPSへの自動リダイレクト
-    SECURE_SSL_REDIRECT = True  # HTTPアクセスを強制的にHTTPSへ
+        # HTTPSリダイレクト設定
+    if os.environ.get('DISABLE_SSL_REDIRECT'):
+        # ローカルで本番モードテスト用
+        SECURE_SSL_REDIRECT = False
+    else:
+        # 本番環境のみTrue
+        SECURE_SSL_REDIRECT = True
 
     # リファラーポリシー
     SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
