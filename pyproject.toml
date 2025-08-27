@@ -1,0 +1,41 @@
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "myblog.settings.base"
+testpaths = ["blog", "accounts"]
+python_files = "test_*.py"
+addopts = "--ignore=lib --ignore=lib64 --ignore=venv -v"
+norecursedirs = ["venv", "lib", "lib64", ".git", "__pycache__", ".tox", "dist", "build", "*.egg"]
+
+[tool.coverage.run]
+source = ["blog", "accounts"]
+omit = [
+    "*/tests/*",
+    "*/migrations/*",
+    "*/__init__.py",
+    "*/admin.py",
+    "*/apps.py",
+]
+
+[tool.coverage.report]
+precision = 2
+skip_empty = true
+show_missing = true
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | lib
+  | lib64
+  | migrations
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+skip = ["venv", "lib", "lib64", "migrations"]

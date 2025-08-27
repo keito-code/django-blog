@@ -138,7 +138,7 @@ class TestPostAPI:
     
     def test_retrieve_post_unauthenticated(self, api_client, post):
         """未認証でも公開記事の詳細を取得できる"""
-        url = reverse('blog-api:post-detail', kwargs={'pk': post.pk})
+        url = reverse('blog-api:post-detail', kwargs={'slug': post.slug})
         response = api_client.get(url)
         
         assert response.status_code == status.HTTP_200_OK
@@ -146,7 +146,7 @@ class TestPostAPI:
     
     def test_retrieve_draft_post_unauthenticated(self, api_client, draft_post):
         """未認証では下書き記事にアクセスできない"""
-        url = reverse('blog-api:post-detail', kwargs={'pk': draft_post.pk})
+        url = reverse('blog-api:post-detail', kwargs={'slug': draft_post.slug})
         response = api_client.get(url)
         
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -179,7 +179,7 @@ class TestPostAPI:
     
     def test_update_own_post(self, authenticated_client, post):
         """著者は自分の記事を更新できる"""
-        url = reverse('blog-api:post-detail', kwargs={'pk': post.pk})
+        url = reverse('blog-api:post-detail', kwargs={'slug': post.slug})
         data = {
             'title': 'Updated Post',
             'content': 'Updated content',
@@ -195,7 +195,7 @@ class TestPostAPI:
         refresh = RefreshToken.for_user(another_user)
         api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
         
-        url = reverse('blog-api:post-detail', kwargs={'pk': post.pk})
+        url = reverse('blog-api:post-detail', kwargs={'slug': post.slug})
         data = {
             'title': 'Updated Post',
             'content': 'Updated content',
@@ -211,7 +211,7 @@ class TestPostAPI:
         original_content = post.content
 
         # 部分変更
-        url = reverse('blog-api:post-detail', kwargs={'pk': post.pk})
+        url = reverse('blog-api:post-detail', kwargs={'slug': post.slug})
         data = {'title': 'Partially Updated Post'}
         response = authenticated_client.patch(url, data)
         
@@ -226,7 +226,7 @@ class TestPostAPI:
     
     def test_delete_own_post(self, authenticated_client, post):
         """著者は自分の記事を削除できる"""
-        url = reverse('blog-api:post-detail', kwargs={'pk': post.pk})
+        url = reverse('blog-api:post-detail', kwargs={'slug': post.slug})
         response = authenticated_client.delete(url)
         
         assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -237,7 +237,7 @@ class TestPostAPI:
         refresh = RefreshToken.for_user(another_user)
         api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
         
-        url = reverse('blog-api:post-detail', kwargs={'pk': post.pk})
+        url = reverse('blog-api:post-detail', kwargs={'slug': post.slug})
         response = api_client.delete(url)
         
         assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -356,7 +356,7 @@ class TestPostCustomActions:
     
     def test_publish_post(self, authenticated_client, draft_post):
         """下書きを公開できる"""
-        url = f"/api/v1/blog/posts/{draft_post.pk}/publish/"
+        url = f"/api/v1/blog/posts/{draft_post.slug}/publish/"
         response = authenticated_client.post(url)
         
         assert response.status_code == status.HTTP_200_OK
@@ -367,7 +367,7 @@ class TestPostCustomActions:
     
     def test_unpublish_post(self, authenticated_client, post):
         """公開記事を下書きに戻せる"""
-        url = f"/api/v1/blog/posts/{post.pk}/unpublish/"
+        url = f"/api/v1/blog/posts/{post.slug}/unpublish/"
         response = authenticated_client.post(url)
         
         assert response.status_code == status.HTTP_200_OK

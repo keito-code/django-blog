@@ -143,7 +143,7 @@ class TestPostDetailAPI:
             content='テスト内容',
             status='published'
         )
-        url = reverse('blog-api:post-detail', kwargs={'pk': post.id})
+        url = reverse('blog-api:post-detail', kwargs={'slug': post.slug})
 
         response = self.client.get(url)
 
@@ -163,7 +163,7 @@ class TestPostDetailAPI:
             content='下書き内容',
             status='draft'
         )
-        url = reverse('blog-api:post-detail', kwargs={'pk': post.id})
+        url = reverse('blog-api:post-detail', kwargs={'slug': post.slug})
 
         response = self.client.get(url)
 
@@ -171,7 +171,7 @@ class TestPostDetailAPI:
 
     def test_nonexistent_post_not_found(self):
         """存在しない記事は404エラーになること"""
-        url = reverse('blog-api:post-detail', kwargs={'pk': 9999})
+        url = reverse('blog-api:post-detail', kwargs={'slug': 'non-existent-slug'})
 
         response = self.client.get(url)
 
@@ -193,7 +193,7 @@ class TestPostDetailAPI:
             active=True
         )
 
-        url = reverse('blog-api:post-detail', kwargs={'pk': post.id})
+        url = reverse('blog-api:post-detail', kwargs={'slug': post.slug})
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK

@@ -1,4 +1,3 @@
-# api_test.py - 認証API総合テスト
 
 import json
 import urllib.request
