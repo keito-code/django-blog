@@ -1,7 +1,7 @@
 from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.pagination import PageNumberPagination
+from .pagination import CustomPageNumberPagination
 from django.db.models import Q
 from .models import Post
 from .serializers import PostListSerializer, PostDetailSerializer
@@ -9,13 +9,6 @@ from .permissions import IsAuthorOrReadOnly
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-
-class CustomPageNumberPagination(PageNumberPagination):
-    """カスタムページネーション"""
-    page_size = 10
-    page_size_query_param = 'pageSize'
-    max_page_size = 100
-
 
 class PostViewSet(viewsets.ModelViewSet):
     """

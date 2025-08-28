@@ -15,6 +15,9 @@ class PostAdmin(admin.ModelAdmin):
     date_hierarchy = 'publish'
     ordering = ('status', 'publish')
     view_on_site = False  # 「サイト上で表示」ボタンを非表示
+    list_per_page = 50  # ページネーション設定
+    list_editable = ('status',)  # 一覧で直接編集
+    save_on_top = True  # 上部にも保存ボタン
 
 
 @admin.register(Comment)
