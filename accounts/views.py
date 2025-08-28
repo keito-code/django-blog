@@ -24,6 +24,22 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(
+                description="ログイン成功",
+                response={
+                    'type': 'object',
+                    'properties': {
+                        'refresh': {'type': 'string', 'description': 'リフレッシュトークン'},
+                        'access': {'type': 'string', 'description': 'アクセストークン'},
+                    }
+                }
+            ),
+            401: OpenApiResponse(description="認証失敗"),
+            403: OpenApiResponse(description="管理者アカウントではログインできません")
+        },
+    )
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         
@@ -83,6 +99,29 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = None  # ← ログアウトにはシリアライザー不要と明示
 
+    @extend_schema(
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'refresh': {'type': 'string', 'description': 'リフレッシュトークン'}
+                },
+                'required': ['refresh']
+            }
+        },
+        responses={
+            200: OpenApiResponse(
+                description="ログアウト成功",
+                response={
+                    'type': 'object',
+                    'properties': {
+                        'detail': {'type': 'string', 'example': 'ログアウトしました'}
+                    }
+                }
+            ),
+            400: OpenApiResponse(description="無効なトークンまたはリフレッシュトークンが必要"),
+        },
+    )
     def post(self, request):
         try:
             refresh_token = request.data.get('refresh')
@@ -138,19 +177,18 @@ class CurrentUserView(APIView):
         'application/json': {
             'type': 'object',
             'properties': {
-                'token': {'type': 'string', 'description': 'JWTアクセストークン'}
+                'token': {'type': 'string',}
             },
             'required': ['token']
         }
     },
     responses={
         200: OpenApiResponse(
-            description="トークンは有効です",
             response={
                 'type': 'object',
                 'properties': {
                     'valid': {'type': 'boolean'},
-                    'user': {'type': 'object', 'description': 'ユーザー情報（オプション）'}
+                    'user': {'type': 'object'}
                 }
             }
         ),
@@ -158,14 +196,11 @@ class CurrentUserView(APIView):
         401: OpenApiResponse(description="トークンが無効です"),
         403: OpenApiResponse(description="管理者トークンは無効です")
     },
-    summary="トークン検証",
-    description="JWTアクセストークンの有効性を検証します",
     
 )
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_token(request):
-    """トークンの有効性を確認"""
     token = request.data.get('token')
     
     if not token:

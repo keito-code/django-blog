@@ -192,11 +192,3 @@ class PostViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK
         )
 
-
-
-
-
-
-
-
-
