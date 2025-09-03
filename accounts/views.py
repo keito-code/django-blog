@@ -12,7 +12,7 @@ Cookie+JWT認証を実装し、CSRF保護を適用する。
 
 import json
 from django.conf import settings
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseNotAllowed
 from django.views import View
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
@@ -20,9 +20,24 @@ from django.middleware.csrf import get_token
 
 from .services import AuthService, UserService
 
+class CSRFProtectedView(View):
+    """CSRFプロテクションを適切に処理する基底ビュー"""
+    
+    http_method_names = ['post']  # 許可するHTTPメソッドを明示的に指定
+    
+    def dispatch(self, request, *args, **kwargs):
+        """HTTPメソッドをチェックしてから、CSRFプロテクションを適用"""
+        # 1. まずHTTPメソッドをチェック
+        if request.method.lower() not in self.http_method_names:
+            return HttpResponseNotAllowed(self.http_method_names)
+        
+        # 2. 許可されたメソッドの場合のみCSRFチェック
+        return super().dispatch(request, *args, **kwargs)
 
 class CSRFTokenView(View): 
     """CSRFトークン取得用ビュー"""
+
+    http_method_names = ['get']  # GETのみ許可
     
     @method_decorator(ensure_csrf_cookie)
     def get(self, request):
@@ -42,7 +57,7 @@ class CSRFTokenView(View):
 
 
 @method_decorator(csrf_protect, name='dispatch')
-class LoginView(View):
+class LoginView(CSRFProtectedView):
     """ログイン用ビュー"""
     
     def post(self, request):
@@ -108,7 +123,7 @@ class LoginView(View):
 
 
 @method_decorator(csrf_protect, name='dispatch')
-class RegisterView(View):
+class RegisterView(CSRFProtectedView):
     """ユーザー登録用ビュー"""
     
     def post(self, request):
@@ -161,7 +176,7 @@ class RegisterView(View):
 
 
 @method_decorator(csrf_protect, name='dispatch')
-class LogoutView(View):
+class LogoutView(CSRFProtectedView):
     """ログアウト用ビュー"""
     
     def post(self, request):
@@ -191,7 +206,7 @@ class LogoutView(View):
 
 
 @method_decorator(csrf_protect, name='dispatch')
-class RefreshView(View):
+class RefreshView(CSRFProtectedView):
     """トークンリフレッシュ用ビュー"""
     
     def post(self, request):

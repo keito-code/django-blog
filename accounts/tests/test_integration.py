@@ -230,12 +230,25 @@ class TestErrorHandlingIntegration:
         """許可されていないHTTPメソッドは405エラー"""
         # GETでログインエンドポイントにアクセス
         response = client.get(reverse('accounts:login'))
-        assert response.status_code == 405
+        assert response.status_code == 405 # GETは405が返る（CSRFチェック不要）
         
         # DELETEでリフレッシュエンドポイントにアクセス
+        # セキュリティ優先：CSRFチェックが先に実行されて403が返る
         response = client.delete(reverse('accounts:refresh'))
-        assert response.status_code == 405
+        assert response.status_code == 403, \
+             "DELETE without CSRF token should return 403 (CSRF protection takes priority)"
     
+        # 追加テスト：CSRFトークン付きでDELETEを送ると405が返ることを確認
+        csrf_response = client.get(reverse('accounts:csrf'))
+        csrf_token = csrf_response.json().get('csrf_token')
+        
+        response_with_csrf = client.delete(
+            reverse('accounts:refresh'),
+            HTTP_X_CSRFTOKEN=csrf_token
+        )
+        assert response_with_csrf.status_code == 405, \
+            "DELETE with valid CSRF token should return 405 (Method Not Allowed)"
+
     def test_missing_required_fields(self, client):
         """必須フィールド不足は400エラー"""
         # CSRFトークン取得
