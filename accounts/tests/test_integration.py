@@ -71,7 +71,7 @@ class TestAuthenticationFlowIntegration:
         initial_refresh = login_response.cookies[settings.AUTH_COOKIE_REFRESH_TOKEN].value
         
         time.sleep(1)
-        
+
         # 4. トークンリフレッシュ（CSRFあり）
         refresh_response = client.post(
             reverse('accounts:refresh'),
@@ -178,13 +178,16 @@ class TestCookieSecurityIntegration:
         
         # アクセストークンCookieの属性確認
         access_cookie = response.cookies[settings.AUTH_COOKIE_ACCESS_TOKEN]
-        assert access_cookie['httponly'] == settings.AUTH_COOKIE_HTTPONLY
+        assert bool(access_cookie['httponly']) == settings.AUTH_COOKIE_HTTPONLY
         assert access_cookie['samesite'] == settings.AUTH_COOKIE_SAMESITE
-        assert access_cookie['secure'] == settings.AUTH_COOKIE_SECURE
+        assert bool(access_cookie['secure']) == settings.AUTH_COOKIE_SECURE
         assert int(access_cookie['max-age']) == settings.AUTH_COOKIE_ACCESS_MAX_AGE
         
         # リフレッシュトークンCookieの属性確認
         refresh_cookie = response.cookies[settings.AUTH_COOKIE_REFRESH_TOKEN]
+        assert bool(refresh_cookie['httponly']) == settings.AUTH_COOKIE_HTTPONLY
+        assert refresh_cookie['samesite'] == settings.AUTH_COOKIE_SAMESITE
+        assert bool(refresh_cookie['secure']) == settings.AUTH_COOKIE_SECURE
         assert int(refresh_cookie['max-age']) == settings.AUTH_COOKIE_REFRESH_MAX_AGE
     
     def test_csrf_cookie_attributes(self, client):
@@ -195,14 +198,14 @@ class TestCookieSecurityIntegration:
             csrf_cookie = response.cookies[settings.CSRF_COOKIE_NAME]
             
             # CSRFトークンはJavaScriptからアクセス可能である必要
-            assert csrf_cookie['httponly'] == False, "CSRF cookie must be accessible from JavaScript"
+            assert bool(csrf_cookie['httponly']) == settings.CSRF_COOKIE_HTTPONLY, \
+                "CSRF cookie must be accessible from JavaScript"
             
             # その他の属性
             assert csrf_cookie['samesite'] == settings.CSRF_COOKIE_SAMESITE
             
             # Secure属性は環境依存
-            if hasattr(settings, 'CSRF_COOKIE_SECURE'):
-                assert csrf_cookie['secure'] == settings.CSRF_COOKIE_SECURE
+            assert bool(csrf_cookie['secure']) == settings.CSRF_COOKIE_SECURE
 
 
 @pytest.mark.django_db
