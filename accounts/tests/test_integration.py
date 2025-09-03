@@ -7,6 +7,7 @@
 """
 import pytest
 import json
+import time
 from django.urls import reverse
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -68,6 +69,8 @@ class TestAuthenticationFlowIntegration:
         # トークンの値を保存
         initial_access = login_response.cookies[settings.AUTH_COOKIE_ACCESS_TOKEN].value
         initial_refresh = login_response.cookies[settings.AUTH_COOKIE_REFRESH_TOKEN].value
+        
+        time.sleep(1)
         
         # 4. トークンリフレッシュ（CSRFあり）
         refresh_response = client.post(

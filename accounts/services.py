@@ -4,13 +4,13 @@
 Viewから呼ばれるビジネスロジックを実装する。
 JWTトークンの生成・検証、ユーザー管理などを担当。
 """
-
+import uuid
+import jwt
+from datetime import datetime, timedelta, timezone
+from django.conf import settings
 from typing import Optional, Tuple
 from django.contrib.auth import get_user_model
-from django.contrib.auth.hashers import make_password, check_password
-import jwt
-import datetime
-from django.conf import settings
+
 
 User = get_user_model()
 
@@ -164,14 +164,15 @@ class TokenService:
         Returns:
             JWTアクセストークン
         """
+        now = datetime.now(timezone.utc)
+
         payload = {
             'user_id': user.id,
             'email': user.email,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(
-                seconds=settings.AUTH_COOKIE_ACCESS_MAX_AGE
-            ),
-            'iat': datetime.datetime.utcnow(),
-            'type': 'access'
+            'exp': now + timedelta(seconds=settings.AUTH_COOKIE_ACCESS_MAX_AGE),
+            'iat': now,
+            'type': 'access',
+            'jti': str(uuid.uuid4()) # JWT ID
         }
         
         return jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
@@ -186,13 +187,14 @@ class TokenService:
         Returns:
             JWTリフレッシュトークン
         """
+        now = datetime.now(timezone.utc)
+
         payload = {
             'user_id': user.id,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(
-                seconds=settings.AUTH_COOKIE_REFRESH_MAX_AGE
-            ),
-            'iat': datetime.datetime.utcnow(),
-            'type': 'refresh'
+            'exp': now + timedelta(seconds=settings.AUTH_COOKIE_REFRESH_MAX_AGE),
+            'iat': now,
+            'type': 'refresh',
+            'jti': str(uuid.uuid4()) # JWT ID
         }
         
         return jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
