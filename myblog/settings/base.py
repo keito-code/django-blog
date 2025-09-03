@@ -31,8 +31,8 @@ JWT_SECRET_KEY = config('JWT_SECRET_KEY')  # defaultなし
 
 SIMPLE_JWT = {
     'SIGNING_KEY': JWT_SECRET_KEY,
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=2),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
 }
@@ -42,15 +42,40 @@ DEBUG = config('DEBUG', cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', cast=Csv())
 
-# Render.comの開発では自動的にホスト名を追加
-if os.environ.get('RENDER'):
-    ALLOWED_HOSTS.append(os.environ.get('RENDER_EXTERNAL_HOSTNAME'))
-
 # 管理画面のURLを環境変数から取得 (セキュリティ向上)
 ADMIN_URL = config('ADMIN_URL') # 必須にする
 
 # APIのバージョン管理
 API_VERSION = 'v1'
+
+# Cookie名の定義（フロントエンドと共有する契約値）
+AUTH_COOKIE_ACCESS_TOKEN = 'access_token'
+AUTH_COOKIE_REFRESH_TOKEN = 'refresh_token'
+CSRF_COOKIE_NAME = 'csrf_token'
+
+# JWT Cookie認証設定
+AUTH_COOKIE_HTTPONLY = True  # XSS対策: JSからアクセス不可
+AUTH_COOKIE_SAMESITE = 'Lax'  # CSRF対策: 適度なセキュリティ
+AUTH_COOKIE_ACCESS_MAX_AGE = 60 * 30  # 30分
+AUTH_COOKIE_REFRESH_MAX_AGE = 60 * 60 * 24 * 14  # 14日
+
+# CSRF Cookie設定（JWT認証と連携）
+CSRF_COOKIE_HTTPONLY = False  # JSからアクセス必要
+CSRF_COOKIE_SAMESITE = 'Lax'  # AUTH_COOKIEと同じ設定
+CSRF_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1年
+
+# 環境別設定
+if DEBUG:
+    AUTH_COOKIE_SECURE = False  # 開発: HTTPでも動作
+    AUTH_COOKIE_DOMAIN = None   # 開発: localhost用
+    CSRF_COOKIE_SECURE = False 
+    CSRF_COOKIE_DOMAIN = None
+else:
+    AUTH_COOKIE_SECURE = True   # 本番: HTTPS必須
+    AUTH_COOKIE_DOMAIN = config('COOKIE_DOMAIN') 
+    CSRF_COOKIE_SECURE = True 
+    CSRF_COOKIE_DOMAIN = config('COOKIE_DOMAIN')
+    CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', cast=Csv())
 
 
 # Application definition
@@ -176,8 +201,7 @@ LOGOUT_REDIRECT_URL = '/blog/'
 if not DEBUG:
     # セッションクッキーのセキュリティ
     SESSION_COOKIE_SECURE = True  # HTTPS接続でのみ送信
-    CSRF_COOKIE_SECURE = True      # CSRF保護クッキーもHTTPS必須
-    
+
     # クリックジャッキング対策
     X_FRAME_OPTIONS = 'DENY'  # iframe内での表示を完全禁止
     
@@ -217,9 +241,7 @@ if not DEBUG:
     # SECURE_HSTS_INCLUDE_SUBDOMAINS = True  # サブドメインも対象に
     # SECURE_HSTS_PRELOAD = True  # ブラウザのプリロードリストに登録
 
-# HTTPOnlyフラグ（XSS対策: JavaScriptからのクッキーアクセスを禁止）
 SESSION_COOKIE_HTTPONLY = True
-CSRF_COOKIE_HTTPONLY = True
 
 # django-axes 設定（ブルートフォース対策）
 AXES_FAILURE_LIMIT = 5  # 5回失敗でロック
@@ -318,7 +340,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
+        'accounts.authentication.CookieJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_RENDERER_CLASSES': (
@@ -405,5 +427,7 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+
+
 
 

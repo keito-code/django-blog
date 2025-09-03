@@ -18,7 +18,9 @@ dist/
 build/
 
 # Django
+logs/
 *.log
+*.log.*
 *.pot
 *.pyc
 db.sqlite3
@@ -47,4 +49,7 @@ htmlcov/
 .tox/
 .pytest_cache/
 pytest.ini.*
-blog-frontend/
+cookies.txt
+
+# デバッグファイル
+*.pid
