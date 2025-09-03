@@ -46,7 +46,7 @@ class TestAuthenticationFlowIntegration:
             reverse('accounts:register'),
             data=json.dumps(register_data),
             content_type='application/json',
-            HTTP_X_CSRF_TOKEN=csrf_token
+            HTTP_X_CSRFTOKEN=csrf_token
         )
         assert response.status_code == 201
         assert User.objects.filter(email=register_data['email']).exists()
@@ -59,7 +59,7 @@ class TestAuthenticationFlowIntegration:
                 'password': register_data['password']
             }),
             content_type='application/json',
-            HTTP_X_CSRF_TOKEN=csrf_token
+            HTTP_X_CSRFTOKEN=csrf_token
         )
         assert login_response.status_code == 200
         assert settings.AUTH_COOKIE_ACCESS_TOKEN in login_response.cookies
@@ -72,7 +72,7 @@ class TestAuthenticationFlowIntegration:
         # 4. トークンリフレッシュ（CSRFあり）
         refresh_response = client.post(
             reverse('accounts:refresh'),
-            HTTP_X_CSRF_TOKEN=csrf_token
+            HTTP_X_CSRFTOKEN=csrf_token
         )
         assert refresh_response.status_code == 200
         
@@ -85,7 +85,7 @@ class TestAuthenticationFlowIntegration:
         # 5. ログアウト（CSRFあり）
         logout_response = client.post(
             reverse('accounts:logout'),
-            HTTP_X_CSRF_TOKEN=csrf_token
+            HTTP_X_CSRFTOKEN=csrf_token
         )
         assert logout_response.status_code == 200
         
@@ -96,7 +96,7 @@ class TestAuthenticationFlowIntegration:
         # 6. ログアウト後はリフレッシュ不可（トークンが無効）
         post_logout_refresh = client.post(
             reverse('accounts:refresh'),
-            HTTP_X_CSRF_TOKEN=csrf_token
+            HTTP_X_CSRFTOKEN=csrf_token
         )
         assert post_logout_refresh.status_code == 401
     
@@ -107,7 +107,7 @@ class TestAuthenticationFlowIntegration:
             reverse('accounts:login'),
             data=json.dumps(login_data),
             content_type='application/json',
-            HTTP_X_CSRF_TOKEN='invalid_csrf_token_12345'
+            HTTP_X_CSRFTOKEN='invalid_csrf_token_12345'
         )
         assert response.status_code == 403, "Invalid CSRF token must return 403"
     
@@ -125,7 +125,7 @@ class TestAuthenticationFlowIntegration:
                 'password': 'wrongpassword'
             }),
             content_type='application/json',
-            HTTP_X_CSRF_TOKEN=csrf_token
+            HTTP_X_CSRFTOKEN=csrf_token
         )
         assert response.status_code == 401, "Wrong password must return 401, not 403"
         assert settings.AUTH_COOKIE_ACCESS_TOKEN not in response.cookies
@@ -145,7 +145,7 @@ class TestAuthenticationFlowIntegration:
                 'username': 'differentuser'
             }),
             content_type='application/json',
-            HTTP_X_CSRF_TOKEN=csrf_token
+            HTTP_X_CSRFTOKEN=csrf_token
         )
         assert response.status_code == 400, "Duplicate email must return 400"
         
@@ -168,7 +168,7 @@ class TestCookieSecurityIntegration:
             reverse('accounts:login'),
             data=json.dumps(login_data),
             content_type='application/json',
-            HTTP_X_CSRF_TOKEN=csrf_token
+            HTTP_X_CSRFTOKEN=csrf_token
         )
         
         assert response.status_code == 200
@@ -216,7 +216,7 @@ class TestErrorHandlingIntegration:
             reverse('accounts:login'),
             data='{"invalid": json}',
             content_type='application/json',
-            HTTP_X_CSRF_TOKEN=csrf_token
+            HTTP_X_CSRFTOKEN=csrf_token
         )
         assert response.status_code == 400
     
@@ -241,6 +241,6 @@ class TestErrorHandlingIntegration:
             reverse('accounts:login'),
             data=json.dumps({'email': 'test@example.com'}),
             content_type='application/json',
-            HTTP_X_CSRF_TOKEN=csrf_token
+            HTTP_X_CSRFTOKEN=csrf_token
         )
         assert response.status_code == 400
