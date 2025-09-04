@@ -6,7 +6,8 @@ Cookie+JWT認証を実装し、CSRF保護を適用する。
 
 設計判断：
 - Django標準のViewを使用（APIViewではなく）
-- 理由：Cookie認証はステートフルであり、CSRF保護が必須
+- 理由：Cookie+JWT認証は、JWTトークンをHTTP Cookieに保持するステートレスな設計。
+- Cookieを利用するためCSRF保護が必須となる。
 - APIViewは内部的にCSRF保護を無効化するため不適切
 """
 
