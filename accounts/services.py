@@ -3,15 +3,26 @@
 
 Viewから呼ばれるビジネスロジックを実装する。
 JWTトークンの生成・検証、ユーザー管理などを担当。
+
+なぜPyJWT直接実装か：
+Cookie+JWT認証は、JWTトークンをHTTP Cookieに保持するステートレスな設計。
+Cookieを使用するためCSRF保護が必須となり、
+Django標準のViewとの相性を重視。
+SimpleJWTは主にDRFのAPIView + Header認証を前提としており、
+Cookie認証のケースではPyJWT直接実装の方がシンプルかつ適している。
 """
+
 import uuid
 import jwt
+import logging
 from datetime import datetime, timedelta, timezone
 from django.conf import settings
 from typing import Optional, Tuple
 from django.contrib.auth import get_user_model
+from django.http import HttpRequest
 
 
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
@@ -93,6 +104,66 @@ class AuthService:
         except User.DoesNotExist:
             return None
 
+    def authenticate_request(self, request: HttpRequest) -> Optional[User]:
+        """
+        HTTPリクエストから認証を行う
+        （authentication.pyの機能を統合）
+        
+        Args:
+            request: HTTPリクエストオブジェクト
+            
+        Returns:
+            認証されたユーザーまたはNone
+        """
+        # Cookieからトークン取得
+        raw_token = request.COOKIES.get(settings.AUTH_COOKIE_ACCESS_TOKEN)
+        
+        if not raw_token:
+            logger.debug(f"認証Cookie未検出: {request.path}")
+            return None
+        
+        # トークン検証
+        token_service = TokenService()
+        user_id = token_service.verify_access_token(raw_token)
+        
+        if not user_id:
+            logger.warning(
+                f"無効なアクセストークン: {request.path}",
+                extra={
+                    'user_agent': request.META.get('HTTP_USER_AGENT', '不明'),
+                    'ip_address': request.META.get('REMOTE_ADDR')
+                }
+            )
+            return None
+        
+        try:
+            user = User.objects.get(id=user_id)
+            logger.debug(f"認証成功: ユーザー {user.username}")
+            return user
+            
+        except User.DoesNotExist:
+            logger.error(f"存在しないユーザーID: {user_id}")
+            return None
+        except Exception as e:
+            logger.error(
+                f"認証中の予期しないエラー: {e}",
+                exc_info=True,
+                extra={'request_path': request.path}
+            )
+            return None
+    
+    def get_authenticated_user(self, request: HttpRequest) -> Optional[User]:
+        """
+        リクエストから認証済みユーザーを取得
+        （Viewで使いやすいヘルパーメソッド）
+        """
+        # キャッシュチェック（同じリクエストで複数回呼ばれる場合）
+        if hasattr(request, '_cached_user'):
+            return request._cached_user
+        
+        user = self.authenticate_request(request)
+        request._cached_user = user  # キャッシュ
+        return user
 
 class UserService:
     """ユーザー管理のビジネスロジック"""
