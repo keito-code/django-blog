@@ -9,7 +9,10 @@ import json
 from unittest.mock import Mock, patch
 from django.test import RequestFactory
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from accounts.views import LoginView, RegisterView, LogoutView, RefreshView
+
+User = get_user_model()
 
 
 class TestLoginViewUnit:
@@ -25,7 +28,7 @@ class TestLoginViewUnit:
         # Arrange
         mock_service = mock_auth_service.return_value
         mock_service.login.return_value = (
-            Mock(id=1, email='test@example.com'),
+            User(id=1, email='test@example.com'),
             'access_token_value',
             'refresh_token_value'
         )
@@ -35,6 +38,9 @@ class TestLoginViewUnit:
             data=json.dumps({'email': 'test@example.com', 'password': 'pass'}),
             content_type='application/json'
         )
+
+        # ユニットテストではCSRFをスキップ（ビジネスロジックに集中）
+        request._dont_enforce_csrf_checks = True
         
         # Act
         view = LoginView.as_view()
@@ -56,6 +62,8 @@ class TestLoginViewUnit:
             data=json.dumps({'email': 'test@example.com', 'password': 'wrong'}),
             content_type='application/json'
         )
+
+        request._dont_enforce_csrf_checks = True
         
         # Act
         view = LoginView.as_view()
@@ -71,6 +79,7 @@ class TestLoginViewUnit:
             data='invalid json',
             content_type='application/json'
         )
+        request._dont_enforce_csrf_checks = True
         
         view = LoginView.as_view()
         response = view(request)
@@ -84,6 +93,7 @@ class TestLoginViewUnit:
             data=json.dumps({'email': 'test@example.com'}),  # passwordなし
             content_type='application/json'
         )
+        request._dont_enforce_csrf_checks = True
         
         view = LoginView.as_view()
         response = view(request)
@@ -95,7 +105,8 @@ class TestLoginViewUnit:
         """サービス層を正しいパラメータで呼び出す"""
         # Arrange
         mock_service = mock_auth_service.return_value
-        mock_service.login.return_value = (Mock(), 'token1', 'token2')
+        user = User(id=1, email='user@test.com')
+        mock_service.login.return_value = (user, 'token1', 'token2')
         
         email = 'user@test.com'
         password = 'secret123'
@@ -104,6 +115,7 @@ class TestLoginViewUnit:
             data=json.dumps({'email': email, 'password': password}),
             content_type='application/json'
         )
+        request._dont_enforce_csrf_checks = True
         
         # Act
         view = LoginView.as_view()
@@ -125,7 +137,7 @@ class TestRegisterViewUnit:
         """登録成功時は201を返す"""
         # Arrange
         mock_service = mock_user_service.return_value
-        mock_service.create_user.return_value = Mock(
+        mock_service.create_user.return_value = User(
             id=1,
             email='new@example.com',
             username='newuser'
@@ -140,6 +152,7 @@ class TestRegisterViewUnit:
             }),
             content_type='application/json'
         )
+        request._dont_enforce_csrf_checks = True
         
         # Act
         view = RegisterView.as_view()
@@ -169,6 +182,7 @@ class TestRegisterViewUnit:
             }),
             content_type='application/json'
         )
+        request._dont_enforce_csrf_checks = True
         
         # Act
         view = RegisterView.as_view()
@@ -184,6 +198,7 @@ class TestRegisterViewUnit:
             data='not json',
             content_type='application/json'
         )
+        request._dont_enforce_csrf_checks = True
         
         view = RegisterView.as_view()
         response = view(request)
@@ -197,6 +212,7 @@ class TestRegisterViewUnit:
             data=json.dumps({'email': 'test@example.com'}),  # password, usernameなし
             content_type='application/json'
         )
+        request._dont_enforce_csrf_checks = True
         
         view = RegisterView.as_view()
         response = view(request)
@@ -219,6 +235,7 @@ class TestLogoutViewUnit:
         mock_service.logout.return_value = True
         
         request = factory.post('')
+        request._dont_enforce_csrf_checks = True
         request.COOKIES = {settings.AUTH_COOKIE_REFRESH_TOKEN: 'some_token'}
         
         # Act
@@ -234,6 +251,7 @@ class TestLogoutViewUnit:
         """トークンなしでも200を返す（冪等性）"""
         # Arrange
         request = factory.post('')
+        request._dont_enforce_csrf_checks = True
         request.COOKIES = {}  # Cookieなし
         
         # Act
@@ -263,6 +281,7 @@ class TestRefreshViewUnit:
         )
         
         request = factory.post('')
+        request._dont_enforce_csrf_checks = True
         request.COOKIES = {settings.AUTH_COOKIE_REFRESH_TOKEN: 'old_token'}
         
         # Act
@@ -281,6 +300,7 @@ class TestRefreshViewUnit:
         mock_service.refresh_tokens.return_value = None  # トークン無効
         
         request = factory.post('')
+        request._dont_enforce_csrf_checks = True
         request.COOKIES = {settings.AUTH_COOKIE_REFRESH_TOKEN: 'invalid_token'}
         
         # Act
@@ -293,6 +313,7 @@ class TestRefreshViewUnit:
     def test_refresh_no_token_returns_401(self, factory):
         """トークンなしは401を返す"""
         request = factory.post('')
+        request._dont_enforce_csrf_checks = True
         request.COOKIES = {}  # Cookieなし
         
         view = RefreshView.as_view()
