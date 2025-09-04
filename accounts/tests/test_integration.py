@@ -25,7 +25,8 @@ class TestAuthenticationFlowIntegration:
         # 0. CSRFトークン取得
         csrf_response = client.get(reverse('accounts:csrf'))
         assert csrf_response.status_code == 200, "CSRF endpoint MUST be implemented"
-        csrf_token = csrf_response.json().get('csrf_token')
+        csrf_data = csrf_response.json()
+        csrf_token = csrf_data['data']['csrf_token']
         assert csrf_token, "CSRF token is required"
         
         # 1. 新規登録（CSRFなし→失敗）
@@ -50,6 +51,9 @@ class TestAuthenticationFlowIntegration:
             HTTP_X_CSRFTOKEN=csrf_token
         )
         assert response.status_code == 201
+        data = response.json()
+        assert data['success'] == True
+        assert data['data']['message'] == 'Registration successful'
         assert User.objects.filter(email=register_data['email']).exists()
         
         # 3. ログイン（CSRFあり）
@@ -63,6 +67,9 @@ class TestAuthenticationFlowIntegration:
             HTTP_X_CSRFTOKEN=csrf_token
         )
         assert login_response.status_code == 200
+        login_data = login_response.json()
+        assert login_data['success'] == True
+        assert login_data['data']['message'] == 'Login successful'
         assert settings.AUTH_COOKIE_ACCESS_TOKEN in login_response.cookies
         assert settings.AUTH_COOKIE_REFRESH_TOKEN in login_response.cookies
         
@@ -78,6 +85,9 @@ class TestAuthenticationFlowIntegration:
             HTTP_X_CSRFTOKEN=csrf_token
         )
         assert refresh_response.status_code == 200
+        refresh_data = refresh_response.json()
+        assert refresh_data['success'] == True
+        assert refresh_data['data']['message'] == 'Token refreshed successfully'
         
         # 新しいトークンが発行されたか確認
         new_access = refresh_response.cookies[settings.AUTH_COOKIE_ACCESS_TOKEN].value
@@ -91,6 +101,9 @@ class TestAuthenticationFlowIntegration:
             HTTP_X_CSRFTOKEN=csrf_token
         )
         assert logout_response.status_code == 200
+        logout_data = logout_response.json()
+        assert logout_data['success'] == True
+        assert logout_data['data']['message'] == 'Logout successful'
         
         # Cookieがクリアされたか確認
         assert int(logout_response.cookies[settings.AUTH_COOKIE_ACCESS_TOKEN]['max-age']) == 0
@@ -102,6 +115,9 @@ class TestAuthenticationFlowIntegration:
             HTTP_X_CSRFTOKEN=csrf_token
         )
         assert post_logout_refresh.status_code == 401
+        post_logout_data = post_logout_refresh.json()
+        assert post_logout_data['success'] == False
+        assert post_logout_data['error']['code'] == 'unauthorized'
     
     def test_login_with_invalid_csrf_token(self, client, test_user, login_data):
         """不正なCSRFトークンでのログイン失敗"""
@@ -118,7 +134,8 @@ class TestAuthenticationFlowIntegration:
         """CSRFトークンが正しくても認証情報が間違っていれば401"""
         # CSRFトークン取得
         csrf_response = client.get(reverse('accounts:csrf'))
-        csrf_token = csrf_response.json().get('csrf_token')
+        csrf_data = csrf_response.json()
+        csrf_token = csrf_data['data']['csrf_token']
         
         # 間違ったパスワードでログイン
         response = client.post(
@@ -137,7 +154,8 @@ class TestAuthenticationFlowIntegration:
         """既存ユーザーと同じメールでの登録は400エラー"""
         # CSRFトークン取得
         csrf_response = client.get(reverse('accounts:csrf'))
-        csrf_token = csrf_response.json().get('csrf_token')
+        csrf_data = csrf_response.json()
+        csrf_token = csrf_data['data']['csrf_token']
         
         # 既存ユーザーと同じメールで登録試行
         response = client.post(
@@ -164,7 +182,8 @@ class TestCookieSecurityIntegration:
         """ログイン時のCookie属性が正しく設定される"""
         # CSRFトークン取得
         csrf_response = client.get(reverse('accounts:csrf'))
-        csrf_token = csrf_response.json().get('csrf_token')
+        csrf_data = csrf_response.json()
+        csrf_token = csrf_data['data']['csrf_token']
         
         # ログイン
         response = client.post(
@@ -216,7 +235,8 @@ class TestErrorHandlingIntegration:
         """不正なJSONは400エラー"""
         # CSRFトークン取得
         csrf_response = client.get(reverse('accounts:csrf'))
-        csrf_token = csrf_response.json().get('csrf_token')
+        csrf_data = csrf_response.json()
+        csrf_token = csrf_data['data']['csrf_token']
         
         response = client.post(
             reverse('accounts:login'),
@@ -225,6 +245,9 @@ class TestErrorHandlingIntegration:
             HTTP_X_CSRFTOKEN=csrf_token
         )
         assert response.status_code == 400
+        data = response.json()
+        assert data['success'] == False
+        assert data['error']['code'] == 'validation_error'
     
     def test_method_not_allowed(self, client):
         """許可されていないHTTPメソッドは405エラー"""
@@ -240,8 +263,9 @@ class TestErrorHandlingIntegration:
     
         # 追加テスト：CSRFトークン付きでDELETEを送ると405が返ることを確認
         csrf_response = client.get(reverse('accounts:csrf'))
-        csrf_token = csrf_response.json().get('csrf_token')
-        
+        csrf_data = csrf_response.json()
+        csrf_token = csrf_data['data']['csrf_token']
+
         response_with_csrf = client.delete(
             reverse('accounts:refresh'),
             HTTP_X_CSRFTOKEN=csrf_token
@@ -253,7 +277,8 @@ class TestErrorHandlingIntegration:
         """必須フィールド不足は400エラー"""
         # CSRFトークン取得
         csrf_response = client.get(reverse('accounts:csrf'))
-        csrf_token = csrf_response.json().get('csrf_token')
+        csrf_data = csrf_response.json()
+        csrf_token = csrf_data['data']['csrf_token']
         
         # passwordなしでログイン試行
         response = client.post(
@@ -263,3 +288,6 @@ class TestErrorHandlingIntegration:
             HTTP_X_CSRFTOKEN=csrf_token
         )
         assert response.status_code == 400
+        data = response.json()
+        assert data['success'] == False
+        assert data['error']['code'] == 'validation_error'

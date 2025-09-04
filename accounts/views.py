@@ -12,14 +12,18 @@ Cookie+JWT認証を実装し、CSRF保護を適用する。
 """
 
 import json
+import logging
 from django.conf import settings
-from django.http import JsonResponse, HttpResponseNotAllowed
+from django.http import HttpResponseNotAllowed
 from django.views import View
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from django.middleware.csrf import get_token
-
 from .services import AuthService, UserService
+from .responses import ResponseFormatter
+
+logger = logging.getLogger(__name__)
+
 
 class CSRFProtectedView(View):
     """CSRFプロテクションを適切に処理する基底ビュー"""
@@ -45,7 +49,11 @@ class CSRFTokenView(View):
         """CSRFトークンを返す"""
         csrf_token = get_token(request)
         
-        response = JsonResponse({'csrf_token': csrf_token})
+        response = ResponseFormatter.success(
+            data={'csrf_token': csrf_token},
+            status=200
+        )
+
         response.set_cookie(
             key=settings.CSRF_COOKIE_NAME,
             value=csrf_token,
@@ -66,42 +74,43 @@ class LoginView(CSRFProtectedView):
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
-            return JsonResponse(
-                {'error': '無効なデータ形式です'},
-                status=400
+            return ResponseFormatter.validation_error(
+                "Invalid JSON format"
             )
-        
+            
         # 必須フィールドのチェック
         email = data.get('email')
         password = data.get('password')
         
         if not email or not password:
-            return JsonResponse(
-                {'error': '必須項目が入力されていません'},
-                status=400
+            return ResponseFormatter.validation_error(
+                "Email and password are required"
             )
-        
+
         # サービス層で認証処理
         auth_service = AuthService()
         result = auth_service.login(email, password)
         
         if result is None:
-            return JsonResponse(
-                {'error': 'メールアドレスまたはパスワードが正しくありません'},
-                status=401
-            )
-        
+            return ResponseFormatter.unauthorized(
+                    "Invalid email or password"
+                )
+
         user, access_token, refresh_token = result
         
         # レスポンス作成
-        response = JsonResponse({
-            'message': 'ログインしました',
-            'user': {
-                'id': user.id,
-                'email': user.email
-            }
-        })
-        
+        response = ResponseFormatter.success(
+                data={
+                    'message': 'Login successful',
+                    'user': {
+                        'id': user.id,
+                        'email': user.email,
+                        'username': user.username if hasattr(user, 'username') else None
+                    }
+                },
+                status=200
+            )
+
         # Cookieにトークンを設定
         response.set_cookie(
             key=settings.AUTH_COOKIE_ACCESS_TOKEN,
@@ -132,22 +141,28 @@ class RegisterView(CSRFProtectedView):
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
-            return JsonResponse(
-                {'error': '無効なデータ形式です'},
-                status=400
+            return ResponseFormatter.validation_error(
+                "Invalid JSON format"
             )
-        
+
         # 必須フィールドのチェック
         email = data.get('email')
         password = data.get('password')
         username = data.get('username')
         
         if not email or not password or not username:
-            return JsonResponse(
-                {'error': '必須項目が入力されていません'},
-                status=400
+            missing_fields = []
+            if not email:
+                missing_fields.append('email')
+            if not password:
+                missing_fields.append('password')
+            if not username:
+                missing_fields.append('username')
+            
+            return ResponseFormatter.validation_error(
+                f"Missing required fields: {', '.join(missing_fields)}"
             )
-        
+
         # サービス層でユーザー作成
         user_service = UserService()
         try:
@@ -157,9 +172,9 @@ class RegisterView(CSRFProtectedView):
                 username=username
             )
             
-            return JsonResponse(
-                {
-                    'message': '登録が完了しました',
+            return ResponseFormatter.success(
+                data={
+                    'message': 'Registration successful',
                     'user': {
                         'id': user.id,
                         'email': user.email,
@@ -168,13 +183,16 @@ class RegisterView(CSRFProtectedView):
                 },
                 status=201
             )
-        except (ValueError, Exception):
-            # エラーの詳細を隠蔽（セキュリティ対策）
-            return JsonResponse(
-                {'error': '登録に失敗しました'},
-                status=400
+        except ValueError as e:
+            # バリデーションエラー（重複メールなど）
+            return ResponseFormatter.validation_error(str(e))
+            
+        except Exception as e:
+            logger.error(f"Registration error: {str(e)}")
+            return ResponseFormatter.server_error(
+                "Registration failed",
+                details=str(e) if settings.DEBUG else None
             )
-
 
 @method_decorator(csrf_protect, name='dispatch')
 class LogoutView(CSRFProtectedView):
@@ -182,29 +200,52 @@ class LogoutView(CSRFProtectedView):
     
     def post(self, request):
         """ログアウト処理"""
-        # リフレッシュトークンをCookieから取得
-        refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_TOKEN)
+        try:
+            # リフレッシュトークンをCookieから取得
+            refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_TOKEN)
         
-        # トークンがある場合はサービス層でログアウト処理
-        if refresh_token:
-            auth_service = AuthService()
-            auth_service.logout(refresh_token)
-        
-        # レスポンス作成（トークンの有無に関わらず200を返す = 冪等性）
-        response = JsonResponse({'message': 'ログアウトしました'})
-        
-        # Cookieをクリア
-        response.delete_cookie(
-            key=settings.AUTH_COOKIE_ACCESS_TOKEN,
-            samesite=settings.AUTH_COOKIE_SAMESITE
-        )
-        response.delete_cookie(
-            key=settings.AUTH_COOKIE_REFRESH_TOKEN,
-            samesite=settings.AUTH_COOKIE_SAMESITE
-        )
-        
-        return response
+            # トークンがある場合はサービス層でログアウト処理
+            if refresh_token:
+                auth_service = AuthService()
+                auth_service.logout(refresh_token)
+            
+            # レスポンス作成（トークンの有無に関わらず200を返す = 冪等性）
+            response = ResponseFormatter.success(
+                    data={'message': 'Logout successful'},
+                    status=200
+                )
 
+            # Cookieをクリア
+            response.delete_cookie(
+                key=settings.AUTH_COOKIE_ACCESS_TOKEN,
+                samesite=settings.AUTH_COOKIE_SAMESITE
+            )
+            response.delete_cookie(
+                key=settings.AUTH_COOKIE_REFRESH_TOKEN,
+                samesite=settings.AUTH_COOKIE_SAMESITE
+            )
+            
+            return response
+
+        except Exception as e:
+            logger.error(f"Logout error: {str(e)}")
+            # ログアウトはエラーでも成功扱い（セキュリティ的に）
+            response = ResponseFormatter.success(
+                data={'message': 'Logout completed'},
+                status=200
+            )
+            
+            # Cookieをクリア
+            response.delete_cookie(
+                key=settings.AUTH_COOKIE_ACCESS_TOKEN,
+                samesite=settings.AUTH_COOKIE_SAMESITE
+            )
+            response.delete_cookie(
+                key=settings.AUTH_COOKIE_REFRESH_TOKEN,
+                samesite=settings.AUTH_COOKIE_SAMESITE
+            )
+            
+            return response
 
 @method_decorator(csrf_protect, name='dispatch')
 class RefreshView(CSRFProtectedView):
@@ -212,46 +253,57 @@ class RefreshView(CSRFProtectedView):
     
     def post(self, request):
         """アクセストークンのリフレッシュ処理"""
-        # リフレッシュトークンをCookieから取得
-        refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_TOKEN)
+        try:
+            # リフレッシュトークンをCookieから取得
+            refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_TOKEN)
         
-        if not refresh_token:
-            return JsonResponse(
-                {'error': '認証情報が見つかりません'},
-                status=401
+            if not refresh_token:
+                return ResponseFormatter.unauthorized(
+                        "Refresh token not found"
+                    )
+
+            # サービス層でトークンリフレッシュ
+            auth_service = AuthService()
+            result = auth_service.refresh_tokens(refresh_token)
+            
+            if result is None:
+                return ResponseFormatter.unauthorized(
+                        "Invalid or expired refresh token"
+                    )
+            
+            new_access_token, new_refresh_token = result
+            
+            # レスポンス作成
+            response = ResponseFormatter.success(
+                    data={'message': 'Token refreshed successfully'},
+                    status=200
+                )
+
+            # 新しいトークンをCookieに設定
+            response.set_cookie(
+                key=settings.AUTH_COOKIE_ACCESS_TOKEN,
+                value=new_access_token,
+                max_age=settings.AUTH_COOKIE_ACCESS_MAX_AGE,
+                httponly=settings.AUTH_COOKIE_HTTPONLY,
+                samesite=settings.AUTH_COOKIE_SAMESITE,
+                secure=settings.AUTH_COOKIE_SECURE
             )
-        
-        # サービス層でトークンリフレッシュ
-        auth_service = AuthService()
-        result = auth_service.refresh_tokens(refresh_token)
-        
-        if result is None:
-            return JsonResponse(
-                {'error': '認証情報の更新に失敗しました'},
-                status=401
+            response.set_cookie(
+                key=settings.AUTH_COOKIE_REFRESH_TOKEN,
+                value=new_refresh_token,
+                max_age=settings.AUTH_COOKIE_REFRESH_MAX_AGE,
+                httponly=settings.AUTH_COOKIE_HTTPONLY,
+                samesite=settings.AUTH_COOKIE_SAMESITE,
+                secure=settings.AUTH_COOKIE_SECURE
             )
-        
-        new_access_token, new_refresh_token = result
-        
-        # レスポンス作成
-        response = JsonResponse({'message': '認証情報を更新しました'})
-        
-        # 新しいトークンをCookieに設定
-        response.set_cookie(
-            key=settings.AUTH_COOKIE_ACCESS_TOKEN,
-            value=new_access_token,
-            max_age=settings.AUTH_COOKIE_ACCESS_MAX_AGE,
-            httponly=settings.AUTH_COOKIE_HTTPONLY,
-            samesite=settings.AUTH_COOKIE_SAMESITE,
-            secure=settings.AUTH_COOKIE_SECURE
-        )
-        response.set_cookie(
-            key=settings.AUTH_COOKIE_REFRESH_TOKEN,
-            value=new_refresh_token,
-            max_age=settings.AUTH_COOKIE_REFRESH_MAX_AGE,
-            httponly=settings.AUTH_COOKIE_HTTPONLY,
-            samesite=settings.AUTH_COOKIE_SAMESITE,
-            secure=settings.AUTH_COOKIE_SECURE
-        )
-        
-        return response
+            
+            return response
+
+        except Exception as e:
+            logger.error(f"Token refresh error: {str(e)}")
+            return ResponseFormatter.server_error(
+                "Token refresh failed",
+                details=str(e) if settings.DEBUG else None
+            )
+
+    
