@@ -7,6 +7,52 @@ from django.utils.text import slugify
 import random
 import string
 
+class Category(models.Model):
+    """カテゴリモデル（最小限の実装）"""
+    name = models.CharField('カテゴリ名', max_length=100)
+    slug = models.SlugField('スラッグ', max_length=100, unique=True, blank=True)
+    created = models.DateTimeField('作成日時', auto_now_add=True)
+    updated = models.DateTimeField('更新日時', auto_now=True)
+    
+    class Meta:
+        ordering = ('name',)
+        verbose_name = 'カテゴリ'
+        verbose_name_plural = 'カテゴリ'
+
+    def save(self, *args, **kwargs):
+        """保存時にslugを自動生成（Postモデルと同じロジック）"""
+        if not self.slug:
+            # まず通常のslugifyを試す
+            base_slug = slugify(self.name)
+            
+            # 空文字列の場合（日本語など）はランダム文字列を生成
+            if not base_slug:
+                base_slug = 'category-' + ''.join(random.choices(
+                    string.ascii_lowercase + string.digits, 
+                    k=8
+                ))
+            
+            slug = base_slug
+            counter = 1
+            
+            # 重複チェック（自分自身を除外）
+            qs = Category.objects.filter(slug=slug)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            
+            while qs.exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+                qs = Category.objects.filter(slug=slug)
+                if self.pk:
+                    qs = qs.exclude(pk=self.pk)
+            
+            self.slug = slug
+        
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
 
 class Post(models.Model):
     STATUS_CHOICES = (
@@ -17,6 +63,7 @@ class Post(models.Model):
     title = models.CharField('タイトル', max_length=200)
     slug = models.SlugField('スラッグ', max_length=200, unique=True, blank=True)
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='blog_posts', verbose_name='投稿者')
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True,  related_name='posts', verbose_name='カテゴリ')
     content = models.TextField('本文')
     publish = models.DateTimeField('公開日時', default=timezone.now)
     created = models.DateTimeField('作成日時', auto_now_add=True)
@@ -58,6 +105,22 @@ class Post(models.Model):
             self.slug = slug
         
         super().save(*args, **kwargs)
+
+    @property
+    def created_at(self):
+        return self.created
+    
+    @property
+    def updated_at(self):
+        return self.updated
+    
+    @property
+    def published_at(self):
+        return self.publish
+    
+    @published_at.setter
+    def published_at(self, value):
+        self.publish = value
 
 class Comment(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments', verbose_name='記事')
