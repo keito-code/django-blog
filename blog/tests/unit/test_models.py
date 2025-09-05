@@ -73,6 +73,7 @@ class TestPostModel(TestCase):
     def setUp(self):
         """テスト用データのセットアップ"""
         self.user = User.objects.create_user(
+            username='testuser', 
             email='author@example.com',
             password='password123'
         )
@@ -138,11 +139,11 @@ class TestPostModel(TestCase):
             re.match(r'^[a-z0-9]+(?:-[a-z0-9]+)*$', post.slug),
             f"slugが適切な形式ではない: {post.slug}"
         )
-    
-    def test_duplicate_slug_auto_handling_in_model(self):
-        """モデルのsave()での自動重複回避"""
+
+    def test_manual_duplicate_slug_raises_error(self):
+        """手動で指定した重複slugはエラーになる"""
         # 最初の投稿
-        post1 = Post.objects.create(
+        Post.objects.create(
             title="First Post",
             slug="same-slug",
             content="Content 1",
@@ -150,22 +151,38 @@ class TestPostModel(TestCase):
             category=self.category
         )
         
-        # 2つ目は同じslugを指定
-        post2 = Post(
-            title="Second Post",
-            slug="same-slug",
+        # 同じslugを手動で指定 → エラーになるべき
+        with self.assertRaises(IntegrityError):
+            Post.objects.create(
+                title="Second Post",
+                slug="same-slug",  # 意図的に同じslugを指定
+                content="Content 2",
+                author=self.user,
+                category=self.category
+            )
+
+    def test_slug_update_with_duplicate(self):
+        """既存記事のslug更新時も重複チェック"""
+        post1 = Post.objects.create(
+            title="Post 1",
+            slug="post-1",
+            content="Content 1",
+            author=self.user,
+            category=self.category
+        )
+        post2 = Post.objects.create(
+            title="Post 2",
+            slug="post-2",
             content="Content 2",
             author=self.user,
             category=self.category
         )
-        post2.save()
         
-        # 重複が回避されている
-        self.assertNotEqual(post1.slug, post2.slug)
-        self.assertEqual(post1.slug, "same-slug")
-        # 2つ目のslugに元のslugが含まれている
-        self.assertIn("same-slug", post2.slug)
-    
+        # post2のslugをpost1と同じに変更
+        post2.slug = post1.slug
+        with self.assertRaises(IntegrityError):
+            post2.save()
+
     def test_duplicate_title_generates_unique_slugs(self):
         """同じタイトルから異なるslugを生成"""
         post1 = Post.objects.create(
@@ -268,6 +285,7 @@ class TestModelValidation(TestCase):
     
     def setUp(self):
         self.user = User.objects.create_user(
+            username='testuser', 
             email='test@example.com',
             password='password123'
         )
