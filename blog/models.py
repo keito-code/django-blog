@@ -1,7 +1,5 @@
-from enum import unique
 from django.db import models
 from django.contrib.auth.models import User
-from django.utils import timezone
 from django.urls import reverse
 from django.utils.text import slugify
 import random
@@ -11,8 +9,8 @@ class Category(models.Model):
     """カテゴリモデル（最小限の実装）"""
     name = models.CharField('カテゴリ名', max_length=100)
     slug = models.SlugField('スラッグ', max_length=100, unique=True, blank=True)
-    created = models.DateTimeField('作成日時', auto_now_add=True)
-    updated = models.DateTimeField('更新日時', auto_now=True)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
     
     class Meta:
         ordering = ('name',)
@@ -62,16 +60,33 @@ class Post(models.Model):
     
     title = models.CharField('タイトル', max_length=200)
     slug = models.SlugField('スラッグ', max_length=200, unique=True, blank=True)
-    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='blog_posts', verbose_name='投稿者')
-    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True,  related_name='posts', verbose_name='カテゴリ')
     content = models.TextField('本文')
-    publish = models.DateTimeField('公開日時', default=timezone.now)
+    author = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='blog_posts', 
+        verbose_name='投稿者'
+    )
+    category = models.ForeignKey(
+        Category, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,  
+        related_name='posts', 
+        verbose_name='カテゴリ'
+    )
+    status = models.CharField(
+        'ステータス',
+         max_length=10, 
+         choices=STATUS_CHOICES, 
+         default='draft'
+    )
+    # 旧フィールド名（マイグレーション後に_legacyを付ける予定）
     created = models.DateTimeField('作成日時', auto_now_add=True)
     updated = models.DateTimeField('更新日時', auto_now=True)
-    status = models.CharField('ステータス', max_length=10, choices=STATUS_CHOICES, default='draft')
     
     class Meta:
-        ordering = ('-publish',)
+        ordering = ('-created',)
         verbose_name = '記事'
         verbose_name_plural = '記事'
         
@@ -113,15 +128,11 @@ class Post(models.Model):
     @property
     def updated_at(self):
         return self.updated
-    
-    @property
-    def published_at(self):
-        return self.publish
-    
-    @published_at.setter
-    def published_at(self, value):
-        self.publish = value
 
+    @property
+    def is_published(self):
+        return self.status == 'published'
+    
 class Comment(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments', verbose_name='記事')
     name = models.CharField('名前', max_length=80)
