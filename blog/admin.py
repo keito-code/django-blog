@@ -7,13 +7,13 @@ admin.site.site_url = None # 「サイトを表示」リンクを非表示
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
-    list_display = ('title', 'slug', 'author', 'publish', 'status')
-    list_filter = ('status', 'created', 'publish', 'author')
+    list_display = ('title', 'slug', 'author', 'created', 'status')
+    list_filter = ('status', 'created', 'created', 'author')
     search_fields = ('title', 'content')
     prepopulated_fields = {'slug': ('title',)}
     raw_id_fields = ('author',)
-    date_hierarchy = 'publish'
-    ordering = ('status', 'publish')
+    date_hierarchy = 'created'
+    ordering = ('status', 'created')
     view_on_site = False  # 「サイト上で表示」ボタンを非表示
     list_per_page = 50  # ページネーション設定
     list_editable = ('status',)  # 一覧で直接編集
