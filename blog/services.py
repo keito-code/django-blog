@@ -128,7 +128,7 @@ class PostService:
         if status:
             posts = posts.filter(status=status)
         
-        return posts.order_by('-created_at')
+        return posts.order_by('-created')
     
     def get_post_by_id(self, post_id: int, user: User) -> Post:
         """

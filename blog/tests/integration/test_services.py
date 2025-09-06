@@ -255,7 +255,7 @@ class TestPostService:
         )
         
         with pytest.raises(BlogPermissionError):
-            service.get_post_by_slug('draft-post', user)
+            service.get_post_by_slug(draft.slug, user)
 
 
 @pytest.mark.django_db
@@ -264,16 +264,25 @@ class TestCategoryService:
     
     @pytest.fixture
     def service(self):
-        from blog.services import CategoryService
         return CategoryService()
     
-    def test_get_or_create_category_new(self, service):
-        """新規カテゴリー作成"""
+    def test_get_or_create_category_new_japanese(self, service):
+        """新規カテゴリー作成(日本語)"""
         category = service.get_or_create_category('新カテゴリー')
         
         assert category.name == '新カテゴリー'
-        assert category.slug == 'xin-kategori'
+        # 日本語はランダム文字列になる
+        assert category.slug.startswith('category-')
+        assert len(category.slug) == len('category-') + 8  # category- + 8文字
         assert Category.objects.filter(name='新カテゴリー').exists()
+
+    def test_get_or_create_category_new_english(self, service):
+        """新規カテゴリー作成（英語）"""
+        category = service.get_or_create_category('Programming')
+        
+        assert category.name == 'Programming'
+        assert category.slug == 'programming'  # 英語は正常にslugify
+        assert Category.objects.filter(name='Programming').exists()
     
     def test_get_or_create_category_existing(self, service):
         """既存カテゴリー取得"""
