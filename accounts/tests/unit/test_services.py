@@ -1,411 +1,284 @@
 """
-サービス層のユニットテスト
+サービス層のユニットテスト（SimpleJWT版）
 
 services.py のビジネスロジックをテスト。
+ユニットテストの原則に従い、可能な限りモックを使用。
+統合テストはintegrationフォルダで実施。
 """
 
 import pytest
-from unittest.mock import Mock, patch, call
-from datetime import datetime, timedelta, timezone
-from freezegun import freeze_time
-import uuid
-import jwt
-from django.conf import settings
+from unittest.mock import Mock, patch
 from django.contrib.auth import get_user_model
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 
-from accounts.services import TokenService, AuthService, UserService
+from accounts.services import AuthService, UserService
 
 User = get_user_model()
 
 
-class TestTokenService:
-    """TokenServiceのユニットテスト（DBアクセスなし）"""
-    
-    @pytest.fixture
-    def service(self):
-        return TokenService()
-    
-    @pytest.fixture
-    def mock_user(self):
-        """モックユーザー（DBアクセスなし）"""
-        user = Mock()
-        user.id = 1
-        user.email = 'test@example.com'
-        user.username = 'testuser'
-        return user
-    
-    def test_generate_access_token_structure(self, service, mock_user):
-        """アクセストークンの基本構造"""
-        token = service.generate_access_token(mock_user)
-        
-        # JWT形式の確認
-        assert isinstance(token, str)
-        parts = token.split('.')
-        assert len(parts) == 3  # header.payload.signature
-        
-        # ペイロードの検証
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
-        assert payload['user_id'] == 1
-        assert payload['email'] == 'test@example.com'
-        assert payload['type'] == 'access'
-        assert 'exp' in payload
-        assert 'iat' in payload
-        assert 'jti' in payload
-    
-    def test_generate_refresh_token_structure(self, service, mock_user):
-        """リフレッシュトークンの基本構造"""
-        token = service.generate_refresh_token(mock_user)
-        
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
-        assert payload['user_id'] == 1
-        assert payload['type'] == 'refresh'
-        assert 'email' not in payload  # リフレッシュには含めない（セキュリティ向上）
-        assert 'jti' in payload
-    
-    @freeze_time("2025-01-01 12:00:00")
-    def test_access_token_expiration_matches_settings(self, service, mock_user):
-        """アクセストークンの有効期限が設定と一致"""
-        token = service.generate_access_token(mock_user)
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
-        
-        exp_time = datetime.fromtimestamp(payload['exp'], tz=timezone.utc)
-        iat_time = datetime.fromtimestamp(payload['iat'], tz=timezone.utc)
-        
-        expected_duration = timedelta(seconds=settings.AUTH_COOKIE_ACCESS_MAX_AGE)
-        actual_duration = exp_time - iat_time
-        
-        # 1秒以内の誤差を許容
-        assert abs((actual_duration - expected_duration).total_seconds()) <= 1
-    
-    @freeze_time("2025-01-01 12:00:00")
-    def test_refresh_token_expiration_matches_settings(self, service, mock_user):
-        """リフレッシュトークンの有効期限が設定と一致"""
-        token = service.generate_refresh_token(mock_user)
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
-        
-        exp_time = datetime.fromtimestamp(payload['exp'], tz=timezone.utc)
-        iat_time = datetime.fromtimestamp(payload['iat'], tz=timezone.utc)
-        
-        expected_duration = timedelta(seconds=settings.AUTH_COOKIE_REFRESH_MAX_AGE)
-        actual_duration = exp_time - iat_time
-        
-        assert abs((actual_duration - expected_duration).total_seconds()) <= 1
-    
-    @freeze_time("2025-01-01 12:00:00")
-    def test_access_token_expires_after_max_age(self, service, mock_user):
-        """アクセストークンが期限後に無効になる"""
-        token = service.generate_access_token(mock_user)
-        
-        # 期限の1秒前: まだ有効
-        before_expiry = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc) + \
-                       timedelta(seconds=settings.AUTH_COOKIE_ACCESS_MAX_AGE - 1)
-        with freeze_time(before_expiry):
-            user_id = service.verify_access_token(token)
-            assert user_id == 1
-        
-        # 期限の1秒後: 無効
-        after_expiry = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc) + \
-                      timedelta(seconds=settings.AUTH_COOKIE_ACCESS_MAX_AGE + 1)
-        with freeze_time(after_expiry):
-            user_id = service.verify_access_token(token)
-            assert user_id is None
-    
-    def test_verify_access_token_with_valid_token(self, service, mock_user):
-        """有効なアクセストークンの検証"""
-        token = service.generate_access_token(mock_user)
-        user_id = service.verify_access_token(token)
-        assert user_id == 1
-    
-    def test_verify_access_token_with_invalid_format(self, service):
-        """無効な形式のトークン検証"""
-        assert service.verify_access_token('invalid') is None
-        assert service.verify_access_token('') is None
-        assert service.verify_access_token('a.b.c') is None
-    
-    def test_verify_access_token_with_wrong_type(self, service, mock_user):
-        """タイプが異なるトークンの検証"""
-        refresh_token = service.generate_refresh_token(mock_user)
-        # リフレッシュトークンをアクセストークンとして検証
-        user_id = service.verify_access_token(refresh_token)
-        assert user_id is None
-    
-    def test_verify_refresh_token_with_valid_token(self, service, mock_user):
-        """有効なリフレッシュトークンの検証"""
-        token = service.generate_refresh_token(mock_user)
-        user_id = service.verify_refresh_token(token)
-        assert user_id == 1
-    
-    def test_verify_refresh_token_with_wrong_type(self, service, mock_user):
-        """タイプが異なるトークンの検証"""
-        access_token = service.generate_access_token(mock_user)
-        # アクセストークンをリフレッシュトークンとして検証
-        user_id = service.verify_refresh_token(access_token)
-        assert user_id is None
-    
-    def test_token_uniqueness_via_jti(self, service, mock_user):
-        """JTIによるトークンの一意性"""
-        tokens = []
-        jtis = set()
-        
-        for _ in range(10):
-            token = service.generate_access_token(mock_user)
-            tokens.append(token)
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
-            jtis.add(payload['jti'])
-        
-        # すべて異なるトークンとJTI
-        assert len(set(tokens)) == 10
-        assert len(jtis) == 10
-
-
-@pytest.mark.django_db
 class TestAuthService:
-    """AuthServiceのユニットテスト（最小限のDBアクセス）"""
+    """AuthServiceのユニットテスト（モック中心）"""
     
     @pytest.fixture
     def service(self):
         return AuthService()
     
     @pytest.fixture
-    def test_user(self):
-        return User.objects.create_user(
-            email='test@example.com',
-            password='testpass123',
-            username='testuser'
-        )
+    def mock_user(self):
+        """モックユーザー"""
+        user = Mock(spec=User)
+        user.id = 1
+        user.email = 'test@example.com'
+        user.username = 'testuser'
+        user.is_active = True
+        user.check_password = Mock(return_value=True)
+        return user
     
-    def test_login_with_valid_credentials(self, service, test_user):
+    @patch('accounts.services.User')
+    @patch('accounts.services.RefreshToken')
+    def test_login_with_valid_credentials(self, mock_refresh_token_class, mock_user_class, service, mock_user):
         """有効な認証情報でのログイン"""
+        # Setup
+        mock_user_class.objects.filter.return_value.first.return_value = mock_user
+        mock_user.check_password.return_value = True
+        
+        # RefreshTokenのモック
+        mock_refresh = Mock()
+        mock_refresh.access_token = 'mock_access_token'
+        mock_refresh.__str__ = Mock(return_value='mock_refresh_token')
+        mock_refresh_token_class.for_user.return_value = mock_refresh
+        
+        # Execute
         result = service.login('test@example.com', 'testpass123')
         
+        # Assert
         assert result is not None
-        user, access_token, refresh_token = result
-        assert user.id == test_user.id
-        assert isinstance(access_token, str)
-        assert isinstance(refresh_token, str)
+        user, tokens = result
+        assert user == mock_user
+        assert tokens['access'] == 'mock_access_token'
+        assert tokens['refresh'] == 'mock_refresh_token'
+        
+        # 呼び出し確認
+        mock_user_class.objects.filter.assert_called_once_with(email__iexact='test@example.com')
+        mock_user.check_password.assert_called_once_with('testpass123')
+        mock_refresh_token_class.for_user.assert_called_once_with(mock_user)
     
-    def test_login_with_invalid_password(self, service, test_user):
+    @patch('accounts.services.User')
+    @patch('accounts.services.RefreshToken')
+    def test_login_returns_dict_format(self, mock_refresh_token_class, mock_user_class, service, mock_user):
+        """ログイン時に辞書形式でトークンを返す"""
+        # Setup
+        mock_user_class.objects.filter.return_value.first.return_value = mock_user
+        mock_user.check_password.return_value = True
+        
+        mock_refresh = Mock()
+        mock_refresh.access_token = 'mock_access_token'
+        mock_refresh.__str__ = Mock(return_value='mock_refresh_token')
+        mock_refresh_token_class.for_user.return_value = mock_refresh
+        
+        # Execute
+        result = service.login('test@example.com', 'testpass123')
+        
+        # Assert - 辞書形式の確認
+        _, tokens = result
+        assert isinstance(tokens, dict)
+        assert 'access' in tokens
+        assert 'refresh' in tokens
+    
+    @patch('accounts.services.User')
+    def test_login_with_invalid_password(self, mock_user_class, service, mock_user):
         """無効なパスワードでのログイン失敗"""
+        mock_user_class.objects.filter.return_value.first.return_value = mock_user
+        mock_user.check_password.return_value = False
+        
         result = service.login('test@example.com', 'wrongpassword')
+        
         assert result is None
+        mock_user.check_password.assert_called_once_with('wrongpassword')
     
-    def test_login_with_nonexistent_email(self, service):
+    @patch('accounts.services.User')
+    def test_login_with_nonexistent_email(self, mock_user_class, service):
         """存在しないメールでのログイン失敗"""
+        mock_user_class.objects.filter.return_value.first.return_value = None
+        
         result = service.login('nonexistent@example.com', 'password')
+        
         assert result is None
+        mock_user_class.objects.filter.assert_called_once_with(email__iexact='nonexistent@example.com')
     
-    @patch('accounts.services.TokenService')
-    def test_refresh_tokens_with_valid_token(self, mock_token_service_class, service, test_user):
-        """有効なトークンでのリフレッシュ（TokenServiceモック）"""
-        mock_token_service = mock_token_service_class.return_value
-        mock_token_service.verify_refresh_token.return_value = test_user.id
-        mock_token_service.generate_access_token.return_value = 'new_access'
-        mock_token_service.generate_refresh_token.return_value = 'new_refresh'
+    @patch('accounts.services.User')
+    def test_login_with_inactive_user(self, mock_user_class, service, mock_user):
+        """非アクティブユーザーでのログイン失敗"""
+        mock_user.is_active = False
+        mock_user_class.objects.filter.return_value.first.return_value = mock_user
         
-        result = service.refresh_tokens('valid_refresh_token')
+        result = service.login('test@example.com', 'testpass123')
         
-        assert result == ('new_access', 'new_refresh')
-        mock_token_service.verify_refresh_token.assert_called_once_with('valid_refresh_token')
+        assert result is None
+
+    @patch('accounts.services.User')
+    def test_login_with_email_case_insensitive(self, mock_user_class, service):
+        """メールアドレスの大文字小文字を区別しない"""
+        mock_user_class.objects.filter.return_value.first.return_value = None
+        
+        service.login('TEST@EXAMPLE.COM', 'testpass123')
+        
+        # email__iexactが使われることを確認
+        mock_user_class.objects.filter.assert_called_once_with(email__iexact='TEST@EXAMPLE.COM')
+
     
-    @patch('accounts.services.TokenService')
-    def test_refresh_tokens_with_invalid_token(self, mock_token_service_class, service):
-        """無効なトークンでのリフレッシュ失敗"""
-        mock_token_service = mock_token_service_class.return_value
-        mock_token_service.verify_refresh_token.return_value = None
+    @patch('accounts.services.RefreshToken')
+    def test_refresh_tokens_with_valid_token(self, mock_refresh_token_class, service):
+        """有効なリフレッシュトークンでの更新"""
+        # Setup
+        mock_old_refresh = Mock()
+        mock_old_refresh.check_blacklist = Mock()  # ブラックリストチェック成功
+        
+        mock_new_refresh = Mock()
+        mock_new_refresh.access_token = 'new_access_token'
+        mock_new_refresh.__str__ = Mock(return_value='new_refresh_token')
+        
+        mock_refresh_token_class.return_value = mock_old_refresh
+        mock_old_refresh.rotate = Mock(return_value=mock_new_refresh)
+        
+        # Execute
+        result = service.refresh_tokens('old_refresh_token')
+        
+        # Assert
+        assert result == {
+            'access': 'new_access_token',
+            'refresh': 'new_refresh_token'
+        }
+        mock_refresh_token_class.assert_called_once_with('old_refresh_token')
+        mock_old_refresh.check_blacklist.assert_called_once()
+        mock_old_refresh.rotate.assert_called_once()
+    
+    @patch('accounts.services.RefreshToken')
+    def test_refresh_tokens_with_invalid_token(self, mock_refresh_token_class, service):
+        """無効なリフレッシュトークンでの更新失敗"""
+        mock_refresh_token_class.side_effect = TokenError('Invalid token')
         
         result = service.refresh_tokens('invalid_token')
         
         assert result is None
     
-    @patch('accounts.services.TokenService')
-    def test_refresh_tokens_with_deleted_user(self, mock_token_service_class, service):
-        """削除されたユーザーのトークンでリフレッシュ失敗"""
-        mock_token_service = mock_token_service_class.return_value
-        mock_token_service.verify_refresh_token.return_value = 99999  # 存在しないID
+    @patch('accounts.services.RefreshToken')
+    def test_refresh_tokens_with_blacklisted_token(self, mock_refresh_token_class, service):
+        """ブラックリスト登録済みトークンでの更新失敗"""
+        mock_refresh = Mock()
+        mock_refresh.check_blacklist.side_effect = TokenError('Token is blacklisted')
+        mock_refresh_token_class.return_value = mock_refresh
         
-        result = service.refresh_tokens('some_token')
+        result = service.refresh_tokens('blacklisted_token')
         
         assert result is None
     
-    def test_logout_returns_true(self, service):
-        """ログアウトは常に成功（現在はスタブ）"""
-        result = service.logout('any_refresh_token')
+    @patch('accounts.services.RefreshToken')
+    def test_logout_blacklists_token(self, mock_refresh_token_class, service):
+        """ログアウトでトークンをブラックリスト登録"""
+        mock_refresh = Mock()
+        mock_refresh.blacklist = Mock()
+        mock_refresh_token_class.return_value = mock_refresh
+        
+        result = service.logout('refresh_token')
+        
+        assert result is True
+        mock_refresh.blacklist.assert_called_once()
+    
+    @patch('accounts.services.RefreshToken')
+    def test_logout_with_invalid_token(self, mock_refresh_token_class, service):
+        """無効なトークンでのログアウト"""
+        mock_refresh_token_class.side_effect = TokenError('Invalid token')
+        
+        result = service.logout('invalid_token')
+        
+        # エラーを隠蔽してTrueを返す
         assert result is True
     
-    def test_authenticate_request_without_cookie(self, service):
-        """Cookieがない場合の認証失敗"""
-        # Given
-        mock_request = Mock()
-        mock_request.COOKIES = {}
-        mock_request.path = '/test'
-        mock_request.META = {}
+    @patch('accounts.services.RefreshToken')
+    def test_logout_with_already_blacklisted_token(self, mock_refresh_token_class, service):
+        """既にブラックリスト登録済みトークンのログアウト"""
+        mock_refresh = Mock()
+        mock_refresh.blacklist.side_effect = TokenError('Already blacklisted')
+        mock_refresh_token_class.return_value = mock_refresh
         
-        # When
-        result = service.authenticate_request(mock_request)
+        result = service.logout('blacklisted_token')
         
-        # Then
-        assert result is None
-    
-    def test_authenticate_request_with_empty_token(self, service):
-        """空のトークンでの認証失敗"""
-        # Given
-        mock_request = Mock()
-        mock_request.COOKIES = {settings.AUTH_COOKIE_ACCESS_TOKEN: ''}
-        mock_request.path = '/test'
-        mock_request.META = {}
-        
-        # When
-        result = service.authenticate_request(mock_request)
-        
-        # Then
-        assert result is None
-    
-    @patch('accounts.services.TokenService')
-    def test_authenticate_request_with_valid_token(self, mock_token_service_class, service, test_user):
-        """有効なトークンでの認証成功"""
-        # Given
-        mock_request = Mock()
-        mock_request.COOKIES = {settings.AUTH_COOKIE_ACCESS_TOKEN: 'valid_token'}
-        mock_request.META = {'HTTP_USER_AGENT': 'test-agent', 'REMOTE_ADDR': '127.0.0.1'}
-        mock_request.path = '/test'
-        
-        mock_token_service = mock_token_service_class.return_value
-        mock_token_service.verify_access_token.return_value = test_user.id
-        
-        # When
-        result = service.authenticate_request(mock_request)
-        
-        # Then
-        assert result.id == test_user.id
-        mock_token_service.verify_access_token.assert_called_once_with('valid_token')
-    
-    @patch('accounts.services.TokenService')
-    def test_authenticate_request_with_expired_token(self, mock_token_service_class, service):
-        """期限切れトークンでの認証失敗"""
-        # Given
-        mock_request = Mock()
-        mock_request.COOKIES = {settings.AUTH_COOKIE_ACCESS_TOKEN: 'expired_token'}
-        mock_request.META = {'HTTP_USER_AGENT': 'test-agent'}
-        mock_request.path = '/test'
-        
-        mock_token_service = mock_token_service_class.return_value
-        mock_token_service.verify_access_token.return_value = None
-        
-        # When
-        result = service.authenticate_request(mock_request)
-        
-        # Then
-        assert result is None
+        assert result is True
     
     @patch('accounts.services.logger')
-    @patch('accounts.services.TokenService')
-    def test_authenticate_request_logs_success(self, mock_token_service_class, mock_logger, 
-                                              service, test_user):
-        """認証成功時のロギング"""
-        # Given
-        mock_request = Mock()
-        mock_request.COOKIES = {settings.AUTH_COOKIE_ACCESS_TOKEN: 'valid_token'}
-        mock_request.META = {'HTTP_USER_AGENT': 'test-agent', 'REMOTE_ADDR': '127.0.0.1'}
-        mock_request.path = '/api/test'
+    @patch('accounts.services.User')
+    @patch('accounts.services.RefreshToken')
+    def test_login_logs_success(self, mock_refresh_token_class, mock_user_class, 
+                                mock_logger, service, mock_user):
+        """ログイン成功時のロギング"""
+        mock_user_class.objects.filter.return_value.first.return_value = mock_user
+        mock_user.check_password.return_value = True
         
-        mock_token_service = mock_token_service_class.return_value
-        mock_token_service.verify_access_token.return_value = test_user.id
+        mock_refresh = Mock()
+        mock_refresh.access_token = 'token'
+        mock_refresh.__str__ = Mock(return_value='refresh')
+        mock_refresh_token_class.for_user.return_value = mock_refresh
         
-        # When
-        service.authenticate_request(mock_request)
+        service.login('test@example.com', 'testpass123')
         
-        # Then - 成功ログが記録される
-        debug_calls = [call[0][0] for call in mock_logger.debug.call_args_list]
-        assert any('認証成功' in call for call in debug_calls)
+        # ログ確認
+        mock_logger.info.assert_called()
+        call_args = mock_logger.info.call_args[0][0]
+        assert 'ログイン成功' in call_args
     
     @patch('accounts.services.logger')
-    def test_authenticate_request_logs_no_cookie(self, mock_logger, service):
-        """Cookie未検出時のロギング"""
-        # Given
-        mock_request = Mock()
-        mock_request.COOKIES = {}
-        mock_request.path = '/api/test'
-        mock_request.META = {}
+    @patch('accounts.services.User')
+    def test_login_logs_failure(self, mock_user_class, mock_logger, service, mock_user):
+        """ログイン失敗時のロギング"""
+        mock_user_class.objects.filter.return_value.first.return_value = mock_user
+        mock_user.check_password.return_value = False
         
-        # When
-        service.authenticate_request(mock_request)
+        service.login('test@example.com', 'wrongpassword')
         
-        # Then - デバッグログが記録される
-        debug_calls = [call[0][0] for call in mock_logger.debug.call_args_list]
-        assert any('Cookie未検出' in call for call in debug_calls)
-    
-    @patch('accounts.services.logger')
-    @patch('accounts.services.TokenService')
-    def test_authenticate_request_logs_invalid_token(self, mock_token_service_class, mock_logger, service):
-        """無効トークン時の警告ログ"""
-        # Given
-        mock_request = Mock()
-        mock_request.COOKIES = {settings.AUTH_COOKIE_ACCESS_TOKEN: 'invalid_token'}
-        mock_request.META = {'HTTP_USER_AGENT': 'Mozilla/5.0', 'REMOTE_ADDR': '192.168.1.1'}
-        mock_request.path = '/api/secure'
-        
-        mock_token_service = mock_token_service_class.return_value
-        mock_token_service.verify_access_token.return_value = None
-        
-        # When
-        service.authenticate_request(mock_request)
-        
-        # Then - 警告ログが記録される
         mock_logger.warning.assert_called()
-        call_args = mock_logger.warning.call_args
-        assert '無効なアクセストークン' in call_args[0][0]
-        # extra情報も確認
-        assert 'user_agent' in call_args[1]['extra']
-        assert 'ip_address' in call_args[1]['extra']
-    
-    @patch('accounts.services.logger')
-    @patch('accounts.services.TokenService')
-    def test_authenticate_request_logs_user_not_found(self, mock_token_service_class, mock_logger, service):
-        """存在しないユーザーID時のエラーログ"""
-        # Given
-        mock_request = Mock()
-        mock_request.COOKIES = {settings.AUTH_COOKIE_ACCESS_TOKEN: 'valid_token'}
-        mock_request.META = {'HTTP_USER_AGENT': 'test-agent'}
-        mock_request.path = '/api/test'
-        
-        mock_token_service = mock_token_service_class.return_value
-        mock_token_service.verify_access_token.return_value = 99999  # 存在しないID
-        
-        # When
-        service.authenticate_request(mock_request)
-        
-        # Then - エラーログが記録される
-        error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
-        assert any('存在しないユーザーID' in call for call in error_calls)
+        call_args = mock_logger.warning.call_args[0][0]
+        assert 'ログイン失敗' in call_args
 
-
-@pytest.mark.django_db
 class TestUserService:
-    """UserServiceのユニットテスト"""
+    """UserServiceのユニットテスト（モック中心）"""
     
     @pytest.fixture
     def service(self):
         return UserService()
     
-    def test_create_user_success(self, service):
+    @patch('accounts.services.User')
+    def test_create_user_success(self, mock_user_class, service):
         """ユーザー作成成功"""
+        # Setup
+        mock_user_class.objects.filter.return_value.exists.side_effect = [False, False]  # 重複なし
+        
+        mock_user = Mock()
+        mock_user.email = 'new@example.com'
+        mock_user.username = 'newuser'
+        mock_user_class.objects.create_user.return_value = mock_user
+        
+        # Execute
         user = service.create_user(
             email='new@example.com',
             password='newpass123',
             username='newuser'
         )
         
-        assert user.email == 'new@example.com'
-        assert user.username == 'newuser'
-        assert user.check_password('newpass123')
-    
-    def test_create_user_duplicate_email(self, service):
-        """重複メールでの作成失敗"""
-        User.objects.create_user(
-            email='existing@example.com',
-            password='pass123',
-            username='user1'
+        # Assert
+        assert user == mock_user
+        mock_user_class.objects.create_user.assert_called_once_with(
+            email='new@example.com',
+            password='newpass123',
+            username='newuser'
         )
+    
+    @patch('accounts.services.User')
+    def test_create_user_duplicate_email(self, mock_user_class, service):
+        """重複メールでの作成失敗"""
+        # メール重複あり
+        mock_user_class.objects.filter.return_value.exists.side_effect = [True, False]
         
         with pytest.raises(ValueError, match="Email already exists"):
             service.create_user(
@@ -414,13 +287,11 @@ class TestUserService:
                 username='user2'
             )
     
-    def test_create_user_duplicate_username(self, service):
+    @patch('accounts.services.User')
+    def test_create_user_duplicate_username(self, mock_user_class, service):
         """重複ユーザー名での作成失敗"""
-        User.objects.create_user(
-            email='user1@example.com',
-            password='pass123',
-            username='existingname'
-        )
+        # ユーザー名重複あり
+        mock_user_class.objects.filter.return_value.exists.side_effect = [False, True]
         
         with pytest.raises(ValueError, match="Username already exists"):
             service.create_user(
@@ -429,3 +300,43 @@ class TestUserService:
                 username='existingname'
             )
     
+    @patch('accounts.services.User')
+    def test_get_user_by_email_exists(self, mock_user_class, service):
+        """メールでユーザー取得（存在する場合）"""
+        mock_user = Mock()
+        mock_user.id = 1
+        mock_user.email = 'findme@example.com'
+        mock_user_class.objects.filter.return_value.first.return_value = mock_user
+        
+        found_user = service.get_user_by_email('findme@example.com')
+        
+        assert found_user == mock_user
+        mock_user_class.objects.filter.assert_called_once_with(email__iexact='findme@example.com')
+    
+    @patch('accounts.services.User')
+    def test_get_user_by_email_not_exists(self, mock_user_class, service):
+        """メールでユーザー取得（存在しない場合）"""
+        mock_user_class.objects.filter.return_value.first.return_value = None
+        
+        user = service.get_user_by_email('notfound@example.com')
+        
+        assert user is None
+    
+    @patch('accounts.services.logger')
+    @patch('accounts.services.User')
+    def test_create_user_logs_success(self, mock_user_class, mock_logger, service):
+        """ユーザー作成成功時のロギング"""
+        mock_user_class.objects.filter.return_value.exists.side_effect = [False, False]
+        mock_user = Mock()
+        mock_user.email = 'logged@example.com'
+        mock_user_class.objects.create_user.return_value = mock_user
+        
+        service.create_user(
+            email='logged@example.com',
+            password='pass123',
+            username='loggeduser'
+        )
+        
+        mock_logger.info.assert_called()
+        call_args = mock_logger.info.call_args[0][0]
+        assert 'ユーザー作成成功' in call_args
