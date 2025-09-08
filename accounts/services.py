@@ -4,6 +4,7 @@
 """
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from django.conf import settings
 from django.contrib.auth import get_user_model
 import logging
 from typing import Optional, Dict
@@ -45,7 +46,7 @@ class AuthService:
     
     def refresh_tokens(self, refresh_token: str) -> Optional[Dict[str, str]]:
         """
-        トークンのリフレッシュ処理
+        トークンのリフレッシュ処理（アクセストークン + リフレッシュトークン両方を再発行）
         
         Returns:
             成功時: {'access': new_token, 'refresh': new_token}
@@ -53,16 +54,33 @@ class AuthService:
         """
         try:
             refresh = RefreshToken(refresh_token)
-            refresh.check_blacklist()
-            
-            # SimpleJWTの標準: rotate() を使う
-            new_refresh = refresh.rotate()
-            
-            return {
-                'access': str(new_refresh.access_token),
-                'refresh': str(new_refresh)
-            }
-        except (TokenError, AttributeError) as e:
+
+             # 新しいアクセストークンを生成する必要がある
+            new_access_token = refresh.access_token
+
+            # ROTATE_REFRESH_TOKENS が有効な場合
+            if settings.SIMPLE_JWT.get('ROTATE_REFRESH_TOKENS'):
+                # 古いトークンをブラックリストに追加
+                if settings.SIMPLE_JWT.get('BLACKLIST_AFTER_ROTATION'):
+                    refresh.blacklist()
+                
+                user_id = refresh['user_id']
+                user = User.objects.get(id=user_id)
+
+                new_refresh = RefreshToken.for_user(user)
+                
+                return {
+                    'access': str(new_access_token),
+                    'refresh': str(new_refresh)
+                }
+            else:
+                # ローテーションなし
+                return {
+                    'access': str(new_access_token),
+                    'refresh': refresh_token
+                }
+                
+        except Exception as e:
             logger.warning(f"トークンリフレッシュ失敗: {e}")
             return None
     

@@ -26,13 +26,14 @@ class TestAuthenticationFlowIntegration:
         csrf_response = client.get(reverse('accounts:csrf'))
         assert csrf_response.status_code == 200, "CSRF endpoint MUST be implemented"
         csrf_data = csrf_response.json()
-        csrf_token = csrf_data['data']['csrf_token']
+        csrf_token = csrf_data['data']['csrfToken']
         assert csrf_token, "CSRF token is required"
         
         # 1. 新規登録（CSRFなし→失敗）
         register_data = {
             'email': 'flowuser@example.com',
             'password': 'validpass123',
+            'password_confirmation': 'validpass123',
             'username': 'flowuser'
         }
         
@@ -135,7 +136,7 @@ class TestAuthenticationFlowIntegration:
         # CSRFトークン取得
         csrf_response = client.get(reverse('accounts:csrf'))
         csrf_data = csrf_response.json()
-        csrf_token = csrf_data['data']['csrf_token']
+        csrf_token = csrf_data['data']['csrfToken']
         
         # 間違ったパスワードでログイン
         response = client.post(
@@ -155,7 +156,7 @@ class TestAuthenticationFlowIntegration:
         # CSRFトークン取得
         csrf_response = client.get(reverse('accounts:csrf'))
         csrf_data = csrf_response.json()
-        csrf_token = csrf_data['data']['csrf_token']
+        csrf_token = csrf_data['data']['csrfToken']
         
         # 既存ユーザーと同じメールで登録試行
         response = client.post(
@@ -163,6 +164,7 @@ class TestAuthenticationFlowIntegration:
             data=json.dumps({
                 'email': test_user.email,
                 'password': 'newpass123',
+                'password_confirmation': 'newpass123', 
                 'username': 'differentuser'
             }),
             content_type='application/json',
@@ -172,6 +174,34 @@ class TestAuthenticationFlowIntegration:
         
         # ユーザー数が増えていないことを確認
         assert User.objects.filter(email=test_user.email).count() == 1
+
+    def test_password_mismatch_registration(self, client):
+        """パスワード確認が一致しない場合の登録失敗テスト"""
+        # CSRFトークン取得
+        csrf_response = client.get(reverse('accounts:csrf'))
+        csrf_data = csrf_response.json()
+        csrf_token = csrf_data['data']['csrfToken']
+        
+        # パスワードが一致しない登録試行
+        response = client.post(
+            reverse('accounts:register'),
+            data=json.dumps({
+                'email': 'mismatch@example.com',
+                'password': 'password123',
+                'password_confirmation': 'different456',  # 不一致
+                'username': 'mismatchuser'
+            }),
+            content_type='application/json',
+            HTTP_X_CSRFTOKEN=csrf_token
+        )
+        assert response.status_code == 400, "Password mismatch must return 400"
+        data = response.json()
+        assert data['success'] == False
+        assert 'password' in str(data['error']['details']).lower() or \
+               'password_confirmation' in data['error']['details']
+        
+        # ユーザーが作成されていないことを確認
+        assert not User.objects.filter(email='mismatch@example.com').exists()
 
 
 @pytest.mark.django_db
@@ -183,7 +213,7 @@ class TestCookieSecurityIntegration:
         # CSRFトークン取得
         csrf_response = client.get(reverse('accounts:csrf'))
         csrf_data = csrf_response.json()
-        csrf_token = csrf_data['data']['csrf_token']
+        csrf_token = csrf_data['data']['csrfToken']
         
         # ログイン
         response = client.post(
@@ -236,7 +266,7 @@ class TestErrorHandlingIntegration:
         # CSRFトークン取得
         csrf_response = client.get(reverse('accounts:csrf'))
         csrf_data = csrf_response.json()
-        csrf_token = csrf_data['data']['csrf_token']
+        csrf_token = csrf_data['data']['csrfToken']
         
         response = client.post(
             reverse('accounts:login'),
@@ -264,7 +294,7 @@ class TestErrorHandlingIntegration:
         # 追加テスト：CSRFトークン付きでDELETEを送ると405が返ることを確認
         csrf_response = client.get(reverse('accounts:csrf'))
         csrf_data = csrf_response.json()
-        csrf_token = csrf_data['data']['csrf_token']
+        csrf_token = csrf_data['data']['csrfToken']
 
         response_with_csrf = client.delete(
             reverse('accounts:refresh'),
@@ -278,7 +308,7 @@ class TestErrorHandlingIntegration:
         # CSRFトークン取得
         csrf_response = client.get(reverse('accounts:csrf'))
         csrf_data = csrf_response.json()
-        csrf_token = csrf_data['data']['csrf_token']
+        csrf_token = csrf_data['data']['csrfToken']
         
         # passwordなしでログイン試行
         response = client.post(

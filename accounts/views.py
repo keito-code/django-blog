@@ -41,7 +41,7 @@ class CSRFTokenView(APIView):
                 response={
                     'type': 'object',
                     'properties': {
-                        'csrfToken': {'type': 'string'}
+                        'csrf_token': {'type': 'string'}
                     }
                 }
             )
@@ -50,9 +50,10 @@ class CSRFTokenView(APIView):
     def get(self, request):
         """CSRFトークンを取得"""
         csrf_token = get_token(request)
-        response = ResponseFormatter.success(
+        response_data = ResponseFormatter.success(
             data={'csrf_token': csrf_token}
         )
+        response = Response(response_data, status=status.HTTP_200_OK)
         
         # CSRFトークンをCookieに設定
         response.set_cookie(
@@ -76,10 +77,10 @@ class LoginView(APIView):
             'application/json': {
                 'type': 'object',
                 'properties': {
-                    'username': {'type': 'string'},
+                    'email': {'type': 'string'},
                     'password': {'type': 'string'}
                 },
-                'required': ['username', 'password']
+                'required': ['email', 'password']
             }
         },
         responses={
@@ -95,31 +96,43 @@ class LoginView(APIView):
         
         # 必須フィールドチェック
         if not email or not password:
-            return ResponseFormatter.validation_error(
-                "メールアドレスとパスワードは必須です"
+            return Response(
+                ResponseFormatter.validation_error(
+                    "Email and password are required"
+                ), status=status.HTTP_400_BAD_REQUEST
             )
         
         # サービス層で認証処理
         auth_service = AuthService()
         result = auth_service.login(email, password)
-        
-        if not result['success']:
-            return ResponseFormatter.unauthorized(
-                result.get('error', '認証に失敗しました')
+
+        # 失敗時 (Noneが返ってきた場合)
+        if result is None:
+            return Response(
+                ResponseFormatter.unauthorized(
+                    "Authentication failed"
+                ),
+                status=status.HTTP_401_UNAUTHORIZED
             )
-        
+
+        # 成功時（タプルが返ってきた場合）
+        user, tokens = result
+
         # レスポンス作成
-        response = ResponseFormatter.success(
-            data={
-                'user': PublicUserSerializer(result['user']).data,
-                'message': 'ログインに成功しました'
-            }
+        response = Response(
+            ResponseFormatter.success(
+                data={
+                    'user': PublicUserSerializer(user).data,
+                    'message': 'Login successful'
+                }
+            ),
+            status=status.HTTP_200_OK
         )
         
         # HttpOnly Cookieにトークンを設定
         response.set_cookie(
             key=settings.AUTH_COOKIE_ACCESS_TOKEN,
-            value=result['access_token'],
+            value=tokens['access'],
             max_age=settings.AUTH_COOKIE_ACCESS_MAX_AGE,
             httponly=settings.AUTH_COOKIE_HTTPONLY,
             secure=settings.AUTH_COOKIE_SECURE,
@@ -130,7 +143,7 @@ class LoginView(APIView):
         
         response.set_cookie(
             key=settings.AUTH_COOKIE_REFRESH_TOKEN,
-            value=result['refresh_token'],
+            value=tokens['refresh'],
             max_age=settings.AUTH_COOKIE_REFRESH_MAX_AGE,
             httponly=settings.AUTH_COOKIE_HTTPONLY,
             secure=settings.AUTH_COOKIE_SECURE,
@@ -153,17 +166,19 @@ class LogoutView(APIView):
     )
     def post(self, request):
         """ログアウト処理"""
-        # Cookieからリフレッシュトークンを取得
         refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_TOKEN)
         
-        # トークンをブラックリストに追加（あれば）
+        # トークンがあればブラックリストに追加
         if refresh_token:
             auth_service = AuthService()
             auth_service.logout(refresh_token)
         
         # レスポンス作成
-        response = ResponseFormatter.success(
-            data={'message': 'ログアウトしました'}
+        response = Response(
+            ResponseFormatter.success(
+                data={'message': 'Logout successful'}
+            ),
+            status=status.HTTP_200_OK
         )
         
         # Cookie削除
@@ -171,11 +186,13 @@ class LogoutView(APIView):
             key=settings.AUTH_COOKIE_ACCESS_TOKEN,
             path=settings.AUTH_COOKIE_PATH,
             domain=settings.AUTH_COOKIE_DOMAIN,
+            samesite=settings.AUTH_COOKIE_SAMESITE,
         )
         response.delete_cookie(
             key=settings.AUTH_COOKIE_REFRESH_TOKEN,
             path=settings.AUTH_COOKIE_PATH,
             domain=settings.AUTH_COOKIE_DOMAIN,
+            samesite=settings.AUTH_COOKIE_SAMESITE,
         )
         
         return response
@@ -197,28 +214,33 @@ class RefreshTokenView(APIView):
         refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_TOKEN)
         
         if not refresh_token:
-            return ResponseFormatter.unauthorized(
-                "リフレッシュトークンが必要です"
+            return Response(
+                ResponseFormatter.unauthorized(
+                    "Refresh token is required"
+                ), status=status.HTTP_401_UNAUTHORIZED
             )
         
         # サービス層でトークンリフレッシュ
         auth_service = AuthService()
-        result = auth_service.refresh_token(refresh_token)
-        
-        if not result['success']:
-            return ResponseFormatter.unauthorized(
-                result.get('error', 'トークンの更新に失敗しました')
+        result = auth_service.refresh_tokens(refresh_token)
+
+        if result is None:
+            return Response(
+                ResponseFormatter.unauthorized("Invalid refresh token"),
+                status=status.HTTP_401_UNAUTHORIZED
             )
-        
-        # レスポンス作成
-        response = ResponseFormatter.success(
-            data={'message': 'トークンを更新しました'}
+
+        response = Response(
+            ResponseFormatter.success(
+                data={'message': 'Token refreshed successfully'}
+            ),
+            status=status.HTTP_200_OK
         )
-        
+
         # 新しいアクセストークンをCookieに設定
         response.set_cookie(
             key=settings.AUTH_COOKIE_ACCESS_TOKEN,
-            value=result['access_token'],
+            value=result['access'],
             max_age=settings.AUTH_COOKIE_ACCESS_MAX_AGE,
             httponly=settings.AUTH_COOKIE_HTTPONLY,
             secure=settings.AUTH_COOKIE_SECURE,
@@ -227,19 +249,16 @@ class RefreshTokenView(APIView):
             path=settings.AUTH_COOKIE_PATH
         )
         
-        # ローテーションされた場合は新しいリフレッシュトークンも設定
-        if result.get('refresh_token'):
-            response.set_cookie(
-                key=settings.AUTH_COOKIE_REFRESH_TOKEN,
-                value=result['refresh_token'],
-                max_age=settings.AUTH_COOKIE_REFRESH_MAX_AGE,
-                httponly=settings.AUTH_COOKIE_HTTPONLY,
-                secure=settings.AUTH_COOKIE_SECURE,
-                samesite=settings.AUTH_COOKIE_SAMESITE,
-                domain=settings.AUTH_COOKIE_DOMAIN,
-                path=settings.AUTH_COOKIE_PATH
-            )
-        
+        response.set_cookie(
+            key=settings.AUTH_COOKIE_REFRESH_TOKEN,
+            value=result['refresh'],
+            max_age=settings.AUTH_COOKIE_REFRESH_MAX_AGE,
+            httponly=settings.AUTH_COOKIE_HTTPONLY,
+            secure=settings.AUTH_COOKIE_SECURE,
+            samesite=settings.AUTH_COOKIE_SAMESITE,
+            domain=settings.AUTH_COOKIE_DOMAIN,
+            path=settings.AUTH_COOKIE_PATH
+        )
         return response
 
 @method_decorator(csrf_protect, name='dispatch')
@@ -259,8 +278,10 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         
         if not serializer.is_valid():
-            return ResponseFormatter.validation_error(
-                serializer.errors
+            return Response(
+                ResponseFormatter.validation_error(
+                    serializer.errors
+                ), status=status.HTTP_400_BAD_REQUEST
             )
         
         # ユーザー作成
@@ -270,13 +291,13 @@ class RegisterView(APIView):
         refresh = RefreshToken.for_user(user)
         
         # レスポンス作成
-        response = ResponseFormatter.success(
+        response_data = ResponseFormatter.success(
             data={
                 'user': PublicUserSerializer(user).data,
-                'message': '登録が完了しました'
-            },
-            status=201
+                'message': 'Registration successful'
+            }
         )
+        response = Response(response_data, status=status.HTTP_201_CREATED)
         
         # Cookie設定
         response.set_cookie(
@@ -322,7 +343,10 @@ class CurrentUserView(APIView):
         else:
             serializer = PrivateUserSerializer(request.user)
         
-        return ResponseFormatter.success(data=serializer.data)
+        return Response(
+            ResponseFormatter.success(data=serializer.data),
+            status=status.HTTP_200_OK
+        )
     
     @extend_schema(
         request=UpdateUserSerializer,
@@ -350,17 +374,21 @@ class CurrentUserView(APIView):
             )
         
         if not serializer.is_valid():
-            return ResponseFormatter.validation_error(
-                serializer.errors
+            return Response(
+                ResponseFormatter.validation_error(
+                    serializer.errors
+                ), status=status.HTTP_400_BAD_REQUEST
             )
         
         serializer.save()
         
-        return ResponseFormatter.success(
-            data={
-                'user': serializer.data,
-                'message': 'プロフィールを更新しました'
-            }
+        return Response(
+            ResponseFormatter.success(
+                data={
+                    'user': serializer.data,
+                    'message': 'Profile updated successfully'
+                }
+            ), status=status.HTTP_200_OK
         )
 
 class VerifyTokenView(APIView):
@@ -378,8 +406,10 @@ class VerifyTokenView(APIView):
         access_token = request.COOKIES.get(settings.AUTH_COOKIE_ACCESS_TOKEN)
         
         if not access_token:
-            return ResponseFormatter.unauthorized(
-                "トークンが必要です"
+            return Response(
+                ResponseFormatter.unauthorized(
+                    "Token is required"
+                ), status=status.HTTP_401_UNAUTHORIZED
             )
         
         # サービス層で検証
@@ -387,18 +417,25 @@ class VerifyTokenView(APIView):
         result = auth_service.verify_token(access_token)
         
         if not result['success']:
-            return ResponseFormatter.unauthorized(
-                result.get('error', 'トークンが無効です')
+            return Response(
+                ResponseFormatter.unauthorized(
+                    result.get('error', 'Invalid token')
+                ), status=status.HTTP_401_UNAUTHORIZED
             )
         
         # ユーザー情報を含めて返す
         user = result.get('user')
         if user:
-            return ResponseFormatter.success(
-                data={
-                    'valid': True,
-                    'user': PublicUserSerializer(user).data
-                }
+            return Response(
+                ResponseFormatter.success(
+                    data={
+                        'valid': True,
+                        'user': PublicUserSerializer(user).data
+                    }
+                ), status=status.HTTP_200_OK
             )
         
-        return ResponseFormatter.success(data={'valid': True})
+        return Response(
+            ResponseFormatter.success(data={'valid': True}),
+            status=status.HTTP_200_OK
+        )
