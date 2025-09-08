@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from accounts.serializers import (
     RegisterSerializer,
     PublicUserSerializer,
+    PrivateUserSerializer,
 )
 
 User = get_user_model()
@@ -84,12 +85,14 @@ class TestPublicUserSerializer:
         fields = set(serializer.fields.keys())
         
         # 必要なフィールド
-        assert {'id', 'username', 'email', 'date_joined'}.issubset(fields)
+        assert fields == {'id', 'username'}
         
         # 除外すべきフィールド
+        assert 'email' not in fields
         assert 'password' not in fields
         assert 'is_staff' not in fields
         assert 'is_superuser' not in fields
+        assert 'date_joined' not in fields
     
     @pytest.mark.django_db
     def test_serialize_user(self, test_user):
@@ -98,5 +101,33 @@ class TestPublicUserSerializer:
         data = serializer.data
         
         assert data['id'] == test_user.id
-        assert data['email'] == test_user.email
+        assert data['username'] == test_user.username
+        assert 'email' not in data
         assert 'is_staff' not in data  # セキュリティ確認
+
+class TestPrivateUserSerializer:
+    """PrivateUserSerializerのテスト（本人用）"""
+    
+    def test_declared_fields(self):
+        """フィールド定義の確認"""
+        serializer = PrivateUserSerializer()
+        fields = set(serializer.fields.keys())
+        
+        # 本人用なのでemailも含む
+        assert fields == {'id', 'username', 'email', 'date_joined'}
+        
+        # 除外すべきフィールド
+        assert 'password' not in fields
+        assert 'is_staff' not in fields
+    
+    @pytest.mark.django_db
+    def test_serialize_user(self, test_user):
+        """ユーザーのシリアライズ（本人用）"""
+        serializer = PrivateUserSerializer(test_user)
+        data = serializer.data
+        
+        assert data['id'] == test_user.id
+        assert data['username'] == test_user.username
+        assert data['email'] == test_user.email  # 本人なのでメール含む
+        assert 'date_joined' in data
+        assert 'password' not in data

@@ -23,6 +23,7 @@ from .serializers import (
     RegisterSerializer,
     PublicUserSerializer,
     PrivateUserSerializer,
+    UpdateUserSerializer,
     AdminUserSerializer,
 )
 
@@ -324,7 +325,7 @@ class CurrentUserView(APIView):
         return ResponseFormatter.success(data=serializer.data)
     
     @extend_schema(
-        request=PrivateUserSerializer,
+        request=UpdateUserSerializer,
         responses={
             200: OpenApiResponse(description="更新成功"),
             400: OpenApiResponse(description="バリデーションエラー"),
@@ -342,7 +343,7 @@ class CurrentUserView(APIView):
                 partial=True
             )
         else:
-            serializer = PrivateUserSerializer(
+            serializer = UpdateUserSerializer(
                 request.user, 
                 data=request.data, 
                 partial=True

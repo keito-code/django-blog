@@ -1,117 +1,89 @@
 from rest_framework import serializers
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from rest_framework.validators import UniqueValidator
 
 User = get_user_model()
 
 
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # 既存のフィールドのラベルを変更（上書きではなく修正）
-        self.fields['username'].label = 'ユーザー名'
-        self.fields['password'].label = 'パスワード'
-        self.fields['password'].style = {'input_type': 'password'}
-
-    def validate(self, attrs):
-        data = super().validate(attrs)
-        data['user'] = UserSerializer(self.user).data
-        return data
-
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-        token['username'] = user.username
-        token['email'] = user.email
-        return token
-
-class PublicUserSerializer(serializers.ModelSerializer):
-    """一般公開用のユーザー情報シリアライザー（セキュアバージョン）"""
-    class Meta:
-        model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'date_joined')
-        read_only_fields = ('id', 'date_joined')
-        # is_staffは意図的に除外
+class LoginSerializer(serializers.Serializer):
+    """ログイン用シリアライザー"""
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(required=True, write_only=True)
 
 
-class PrivateUserSerializer(serializers.ModelSerializer):
-    """プライベート用のユーザー情報シリアライザー（自分の情報を見る時）"""
-    class Meta:
-        model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 
-                 'date_joined', 'last_login', 'is_active')
-        read_only_fields = ('id', 'date_joined', 'last_login', 'is_active')
-        # is_staffは含めない
-
-
-class AdminUserSerializer(serializers.ModelSerializer):
-    """管理者用のユーザー情報シリアライザー（管理画面でのみ使用）"""
-    is_staff = serializers.BooleanField(read_only=True)
-    is_superuser = serializers.BooleanField(read_only=True)
-    
-    class Meta:
-        model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 
-                 'date_joined', 'last_login', 'is_active', 'is_staff', 'is_superuser')
-        read_only_fields = ('id', 'date_joined', 'last_login', 'is_staff', 'is_superuser')
-
-
-# 後方互換性のため（既存のコードが動くように）
-UserSerializer = PublicUserSerializer
-
-class RegisterSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(
-        required=True,
-        label='メールアドレス',
-        validators=[UniqueValidator(queryset=User.objects.all(), message="このメールアドレスは既に登録されています。")],
-        help_text='ログインに使用します'
-    )
+class RegisterSerializer(serializers.Serializer):
+    """ユーザー登録用シリアライザー"""
+    email = serializers.EmailField(required=True)
+    username = serializers.CharField(required=True, max_length=150)
     password = serializers.CharField(
         write_only=True,
         required=True,
-        label='パスワード',
-        validators=[validate_password],
-        style={'input_type': 'password'},
-        help_text='8文字以上で設定してください'
+        validators=[validate_password]
     )
     password_confirmation = serializers.CharField(
         write_only=True,
-        required=True,
-        label='パスワード (確認) ',
-        style={'input_type': 'password'},
-        help_text='同じパスワードを入力してください'
+        required=True
     )
-
-    class Meta:
-        model = User
-        fields = ('last_name', 'first_name', 'email', 'username', 'password', 'password_confirmation')
-
-        # モデルフィールドのラベルを日本語化
-        labels = {
-            'last_name': '姓',
-            'first_name': '名',
-            'username': 'ユーザー名',
-        }
-
-        extra_kwargs = {
-            'first_name': {'required': False},  # 名は任意
-            'last_name': {'required': False},   # 姓は任意
-        }
-
+    
     def validate(self, attrs):
+        """パスワード一致確認"""
         if attrs['password'] != attrs['password_confirmation']:
-            raise serializers.ValidationError({"password": "パスワードが一致しません。"})
+            # セキュリティ: 一般的なエラーメッセージ
+            raise serializers.ValidationError(
+                {"password": "Password confirmation does not match"}
+            )
         return attrs
-
+    
+    def validate_username(self, value):
+        """ユーザー名の重複チェック"""
+        if User.objects.filter(username=value).exists():
+            # セキュリティ: 詳細を明かさない
+            raise serializers.ValidationError("Registration failed")
+        return value
+    
+    def validate_email(self, value):
+        """メールアドレスの重複チェック"""
+        if User.objects.filter(email=value).exists():
+            # セキュリティ: 詳細を明かさない
+            raise serializers.ValidationError("Registration failed")
+        return value
+    
     def create(self, validated_data):
-        validated_data.pop('password_confirmation')
+        """ユーザー作成"""
+        validated_data.pop('password_confirmation')  # 不要なので削除
         user = User.objects.create_user(
             username=validated_data['username'],
-            email=validated_data.get('email', ''),
-            password=validated_data['password'],
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', '')
+            email=validated_data['email'],
+            password=validated_data['password']
         )
         return user
+
+
+class PublicUserSerializer(serializers.ModelSerializer):
+    """公開用ユーザー情報"""
+    class Meta:
+        model = User
+        fields = ('id', 'username')
+        read_only_fields = fields
+
+
+class PrivateUserSerializer(serializers.ModelSerializer):
+    """本人用ユーザー情報"""
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'date_joined')
+        read_only_fields = fields
+
+class UpdateUserSerializer(serializers.ModelSerializer):
+    """プロフィール更新用"""
+    class Meta:
+        model = User
+        fields = ('username', 'email')  
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """管理者用ユーザー情報"""
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'date_joined', 
+                 'is_active')
+        read_only_fields = ('id', 'date_joined', 'is_staff', 'is_superuser')
