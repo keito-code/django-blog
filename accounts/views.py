@@ -1,309 +1,406 @@
 """
-認証認可に関するビュー
+認証認可に関するビュー (DRF APIView版)
 
 HTTPレイヤーの責務のみを担当し、ビジネスロジックはservices.pyに委譲する。
 Cookie+JWT認証を実装し、CSRF保護を適用する。
-
-設計判断：
-- Django標準のViewを使用（APIViewではなく）
-- 理由：Cookie+JWT認証は、JWTトークンをHTTP Cookieに保持するステートレスな設計。
-- Cookieを利用するためCSRF保護が必須となる。
-- APIViewは内部的にCSRF保護を無効化するため不適切
 """
 
-import json
-import logging
-from django.conf import settings
-from django.http import HttpResponseNotAllowed
-from django.views import View
-from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
-from django.utils.decorators import method_decorator
 from django.middleware.csrf import get_token
-from .services import AuthService, UserService
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.utils.decorators import method_decorator
+from django.contrib.auth import get_user_model
+from django.conf import settings
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
+from drf_spectacular.utils import extend_schema, OpenApiResponse
+
+from .services import AuthService
 from .responses import ResponseFormatter
+from .serializers import (
+    RegisterSerializer,
+    PublicUserSerializer,
+    PrivateUserSerializer,
+    AdminUserSerializer,
+)
 
-logger = logging.getLogger(__name__)
+User = get_user_model()
 
-
-class CSRFProtectedView(View):
-    """CSRFプロテクションを適切に処理する基底ビュー"""
+@method_decorator(ensure_csrf_cookie, name='dispatch')
+class CSRFTokenView(APIView):
+    """CSRFトークン取得エンドポイント"""
+    permission_classes = [AllowAny]
     
-    http_method_names = ['post']  # 許可するHTTPメソッドを明示的に指定
-    
-    def dispatch(self, request, *args, **kwargs):
-        """HTTPメソッドをチェックしてから、CSRFプロテクションを適用"""
-        # 1. まずHTTPメソッドをチェック
-        if request.method.lower() not in self.http_method_names:
-            return HttpResponseNotAllowed(self.http_method_names)
-        
-        # 2. 許可されたメソッドの場合のみCSRFチェック
-        return super().dispatch(request, *args, **kwargs)
-
-class CSRFTokenView(View): 
-    """CSRFトークン取得用ビュー"""
-
-    http_method_names = ['get']  # GETのみ許可
-    
-    @method_decorator(ensure_csrf_cookie)
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(
+                description="CSRFトークン取得成功",
+                response={
+                    'type': 'object',
+                    'properties': {
+                        'csrfToken': {'type': 'string'}
+                    }
+                }
+            )
+        }
+    )
     def get(self, request):
-        """CSRFトークンを返す"""
+        """CSRFトークンを取得"""
         csrf_token = get_token(request)
         
+        # ResponseFormatterを使用して統一形式で返す
         response = ResponseFormatter.success(
-            data={'csrf_token': csrf_token},
-            status=200
+            data={'csrfToken': csrf_token}
         )
-
+        
+        # CSRFトークンをCookieに設定
         response.set_cookie(
             key=settings.CSRF_COOKIE_NAME,
             value=csrf_token,
-            max_age=settings.CSRF_COOKIE_MAX_AGE,
+            max_age=settings.CSRF_COOKIE_AGE,
             httponly=settings.CSRF_COOKIE_HTTPONLY,
-            samesite=settings.CSRF_COOKIE_SAMESITE,
-            secure=settings.CSRF_COOKIE_SECURE
+            secure=settings.CSRF_COOKIE_SECURE,
+            samesite=settings.CSRF_COOKIE_SAMESITE
         )
+        
         return response
 
 
-@method_decorator(csrf_protect, name='dispatch')
-class LoginView(CSRFProtectedView):
-    """ログイン用ビュー"""
+class LoginView(APIView):
+    """ログインエンドポイント（Cookie認証）"""
+    permission_classes = [AllowAny]
     
+    @extend_schema(
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'username': {'type': 'string'},
+                    'password': {'type': 'string'}
+                },
+                'required': ['username', 'password']
+            }
+        },
+        responses={
+            200: OpenApiResponse(description="ログイン成功"),
+            401: OpenApiResponse(description="認証失敗"),
+            400: OpenApiResponse(description="バリデーションエラー")
+        }
+    )
     def post(self, request):
         """ユーザーログイン処理"""
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return ResponseFormatter.validation_error(
-                "Invalid JSON format"
-            )
-            
-        # 必須フィールドのチェック
-        email = data.get('email')
-        password = data.get('password')
+        username = request.data.get('username')
+        password = request.data.get('password')
         
-        if not email or not password:
+        # 必須フィールドチェック
+        if not username or not password:
             return ResponseFormatter.validation_error(
-                "Email and password are required"
+                "ユーザー名とパスワードは必須です"
             )
-
+        
         # サービス層で認証処理
         auth_service = AuthService()
-        result = auth_service.login(email, password)
+        result = auth_service.login(username, password)
         
-        if result is None:
+        if not result['success']:
             return ResponseFormatter.unauthorized(
-                    "Invalid email or password"
-                )
-
-        user, access_token, refresh_token = result
+                result.get('error', '認証に失敗しました')
+            )
         
         # レスポンス作成
         response = ResponseFormatter.success(
-                data={
-                    'message': 'Login successful',
-                    'user': {
-                        'id': user.id,
-                        'email': user.email,
-                        'username': user.username if hasattr(user, 'username') else None
-                    }
-                },
-                status=200
-            )
-
-        # Cookieにトークンを設定
+            data={
+                'user': PublicUserSerializer(result['user']).data,
+                'message': 'ログインに成功しました'
+            }
+        )
+        
+        # HttpOnly Cookieにトークンを設定
         response.set_cookie(
             key=settings.AUTH_COOKIE_ACCESS_TOKEN,
-            value=access_token,
+            value=result['access_token'],
             max_age=settings.AUTH_COOKIE_ACCESS_MAX_AGE,
             httponly=settings.AUTH_COOKIE_HTTPONLY,
+            secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
-            secure=settings.AUTH_COOKIE_SECURE
+            domain=settings.AUTH_COOKIE_DOMAIN,
+            path=settings.AUTH_COOKIE_PATH
         )
+        
         response.set_cookie(
             key=settings.AUTH_COOKIE_REFRESH_TOKEN,
-            value=refresh_token,
+            value=result['refresh_token'],
             max_age=settings.AUTH_COOKIE_REFRESH_MAX_AGE,
             httponly=settings.AUTH_COOKIE_HTTPONLY,
+            secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
-            secure=settings.AUTH_COOKIE_SECURE
+            domain=settings.AUTH_COOKIE_DOMAIN,
+            path=settings.AUTH_COOKIE_PATH
         )
         
         return response
 
 
-@method_decorator(csrf_protect, name='dispatch')
-class RegisterView(CSRFProtectedView):
-    """ユーザー登録用ビュー"""
+class LogoutView(APIView):
+    """ログアウトエンドポイント"""
+    permission_classes = [IsAuthenticated]
     
-    def post(self, request):
-        """新規ユーザー登録処理"""
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return ResponseFormatter.validation_error(
-                "Invalid JSON format"
-            )
-
-        # 必須フィールドのチェック
-        email = data.get('email')
-        password = data.get('password')
-        username = data.get('username')
-        
-        if not email or not password or not username:
-            missing_fields = []
-            if not email:
-                missing_fields.append('email')
-            if not password:
-                missing_fields.append('password')
-            if not username:
-                missing_fields.append('username')
-            
-            return ResponseFormatter.validation_error(
-                f"Missing required fields: {', '.join(missing_fields)}"
-            )
-
-        # サービス層でユーザー作成
-        user_service = UserService()
-        try:
-            user = user_service.create_user(
-                email=email,
-                password=password,
-                username=username
-            )
-            
-            return ResponseFormatter.success(
-                data={
-                    'message': 'Registration successful',
-                    'user': {
-                        'id': user.id,
-                        'email': user.email,
-                        'username': user.username
-                    }
-                },
-                status=201
-            )
-        except ValueError as e:
-            # バリデーションエラー（重複メールなど）
-            return ResponseFormatter.validation_error(str(e))
-            
-        except Exception as e:
-            logger.error(f"Registration error: {str(e)}")
-            return ResponseFormatter.server_error(
-                "Registration failed",
-                details=str(e) if settings.DEBUG else None
-            )
-
-@method_decorator(csrf_protect, name='dispatch')
-class LogoutView(CSRFProtectedView):
-    """ログアウト用ビュー"""
-    
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="ログアウト成功")
+        }
+    )
     def post(self, request):
         """ログアウト処理"""
-        try:
-            # リフレッシュトークンをCookieから取得
-            refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_TOKEN)
+        # Cookieからリフレッシュトークンを取得
+        refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_TOKEN)
         
-            # トークンがある場合はサービス層でログアウト処理
-            if refresh_token:
-                auth_service = AuthService()
-                auth_service.logout(refresh_token)
-            
-            # レスポンス作成（トークンの有無に関わらず200を返す = 冪等性）
-            response = ResponseFormatter.success(
-                    data={'message': 'Logout successful'},
-                    status=200
-                )
-
-            # Cookieをクリア
-            response.delete_cookie(
-                key=settings.AUTH_COOKIE_ACCESS_TOKEN,
-                samesite=settings.AUTH_COOKIE_SAMESITE
-            )
-            response.delete_cookie(
-                key=settings.AUTH_COOKIE_REFRESH_TOKEN,
-                samesite=settings.AUTH_COOKIE_SAMESITE
-            )
-            
-            return response
-
-        except Exception as e:
-            logger.error(f"Logout error: {str(e)}")
-            # ログアウトはエラーでも成功扱い（セキュリティ的に）
-            response = ResponseFormatter.success(
-                data={'message': 'Logout completed'},
-                status=200
-            )
-            
-            # Cookieをクリア
-            response.delete_cookie(
-                key=settings.AUTH_COOKIE_ACCESS_TOKEN,
-                samesite=settings.AUTH_COOKIE_SAMESITE
-            )
-            response.delete_cookie(
-                key=settings.AUTH_COOKIE_REFRESH_TOKEN,
-                samesite=settings.AUTH_COOKIE_SAMESITE
-            )
-            
-            return response
-
-@method_decorator(csrf_protect, name='dispatch')
-class RefreshView(CSRFProtectedView):
-    """トークンリフレッシュ用ビュー"""
-    
-    def post(self, request):
-        """アクセストークンのリフレッシュ処理"""
-        try:
-            # リフレッシュトークンをCookieから取得
-            refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_TOKEN)
-        
-            if not refresh_token:
-                return ResponseFormatter.unauthorized(
-                        "Refresh token not found"
-                    )
-
-            # サービス層でトークンリフレッシュ
+        # トークンをブラックリストに追加（あれば）
+        if refresh_token:
             auth_service = AuthService()
-            result = auth_service.refresh_tokens(refresh_token)
-            
-            if result is None:
-                return ResponseFormatter.unauthorized(
-                        "Invalid or expired refresh token"
-                    )
-            
-            new_access_token, new_refresh_token = result
-            
-            # レスポンス作成
-            response = ResponseFormatter.success(
-                    data={'message': 'Token refreshed successfully'},
-                    status=200
-                )
+            auth_service.logout(refresh_token)
+        
+        # レスポンス作成
+        response = ResponseFormatter.success(
+            data={'message': 'ログアウトしました'}
+        )
+        
+        # Cookie削除
+        response.delete_cookie(
+            key=settings.AUTH_COOKIE_ACCESS_TOKEN,
+            path=settings.AUTH_COOKIE_PATH,
+            domain=settings.AUTH_COOKIE_DOMAIN,
+        )
+        response.delete_cookie(
+            key=settings.AUTH_COOKIE_REFRESH_TOKEN,
+            path=settings.AUTH_COOKIE_PATH,
+            domain=settings.AUTH_COOKIE_DOMAIN,
+        )
+        
+        return response
 
-            # 新しいトークンをCookieに設定
-            response.set_cookie(
-                key=settings.AUTH_COOKIE_ACCESS_TOKEN,
-                value=new_access_token,
-                max_age=settings.AUTH_COOKIE_ACCESS_MAX_AGE,
-                httponly=settings.AUTH_COOKIE_HTTPONLY,
-                samesite=settings.AUTH_COOKIE_SAMESITE,
-                secure=settings.AUTH_COOKIE_SECURE
+
+class RefreshTokenView(APIView):
+    """トークンリフレッシュエンドポイント"""
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="トークン更新成功"),
+            401: OpenApiResponse(description="無効なリフレッシュトークン")
+        }
+    )
+    def post(self, request):
+        """アクセストークンを更新"""
+        # Cookieからリフレッシュトークンを取得
+        refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_TOKEN)
+        
+        if not refresh_token:
+            return ResponseFormatter.unauthorized(
+                "リフレッシュトークンが必要です"
             )
+        
+        # サービス層でトークンリフレッシュ
+        auth_service = AuthService()
+        result = auth_service.refresh_token(refresh_token)
+        
+        if not result['success']:
+            return ResponseFormatter.unauthorized(
+                result.get('error', 'トークンの更新に失敗しました')
+            )
+        
+        # レスポンス作成
+        response = ResponseFormatter.success(
+            data={'message': 'トークンを更新しました'}
+        )
+        
+        # 新しいアクセストークンをCookieに設定
+        response.set_cookie(
+            key=settings.AUTH_COOKIE_ACCESS_TOKEN,
+            value=result['access_token'],
+            max_age=settings.AUTH_COOKIE_ACCESS_MAX_AGE,
+            httponly=settings.AUTH_COOKIE_HTTPONLY,
+            secure=settings.AUTH_COOKIE_SECURE,
+            samesite=settings.AUTH_COOKIE_SAMESITE,
+            domain=settings.AUTH_COOKIE_DOMAIN,
+            path=settings.AUTH_COOKIE_PATH
+        )
+        
+        # ローテーションされた場合は新しいリフレッシュトークンも設定
+        if result.get('refresh_token'):
             response.set_cookie(
                 key=settings.AUTH_COOKIE_REFRESH_TOKEN,
-                value=new_refresh_token,
+                value=result['refresh_token'],
                 max_age=settings.AUTH_COOKIE_REFRESH_MAX_AGE,
                 httponly=settings.AUTH_COOKIE_HTTPONLY,
+                secure=settings.AUTH_COOKIE_SECURE,
                 samesite=settings.AUTH_COOKIE_SAMESITE,
-                secure=settings.AUTH_COOKIE_SECURE
+                domain=settings.AUTH_COOKIE_DOMAIN,
+                path=settings.AUTH_COOKIE_PATH
             )
-            
-            return response
+        
+        return response
 
-        except Exception as e:
-            logger.error(f"Token refresh error: {str(e)}")
-            return ResponseFormatter.server_error(
-                "Token refresh failed",
-                details=str(e) if settings.DEBUG else None
-            )
 
+class RegisterView(APIView):
+    """ユーザー登録エンドポイント"""
+    permission_classes = [AllowAny]
     
+    @extend_schema(
+        request=RegisterSerializer,
+        responses={
+            201: OpenApiResponse(description="登録成功"),
+            400: OpenApiResponse(description="バリデーションエラー")
+        }
+    )
+    def post(self, request):
+        """新規ユーザー登録"""
+        serializer = RegisterSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return ResponseFormatter.validation_error(
+                serializer.errors
+            )
+        
+        # ユーザー作成
+        user = serializer.save()
+        
+        # トークン生成
+        refresh = RefreshToken.for_user(user)
+        
+        # レスポンス作成
+        response = ResponseFormatter.success(
+            data={
+                'user': PublicUserSerializer(user).data,
+                'message': '登録が完了しました'
+            },
+            status=201
+        )
+        
+        # Cookie設定
+        response.set_cookie(
+            key=settings.AUTH_COOKIE_ACCESS_TOKEN,
+            value=str(refresh.access_token),
+            max_age=settings.AUTH_COOKIE_ACCESS_MAX_AGE,
+            httponly=settings.AUTH_COOKIE_HTTPONLY,
+            secure=settings.AUTH_COOKIE_SECURE,
+            samesite=settings.AUTH_COOKIE_SAMESITE,
+            domain=settings.AUTH_COOKIE_DOMAIN,
+            path=settings.AUTH_COOKIE_PATH
+        )
+        
+        response.set_cookie(
+            key=settings.AUTH_COOKIE_REFRESH_TOKEN,
+            value=str(refresh),
+            max_age=settings.AUTH_COOKIE_REFRESH_MAX_AGE,
+            httponly=settings.AUTH_COOKIE_HTTPONLY,
+            secure=settings.AUTH_COOKIE_SECURE,
+            samesite=settings.AUTH_COOKIE_SAMESITE,
+            domain=settings.AUTH_COOKIE_DOMAIN,
+            path=settings.AUTH_COOKIE_PATH
+        )
+        
+        return response
+
+
+class CurrentUserView(APIView):
+    """現在のユーザー情報エンドポイント"""
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="ユーザー情報取得成功"),
+            401: OpenApiResponse(description="認証が必要です")
+        }
+    )
+    def get(self, request):
+        """現在のユーザー情報を取得"""
+        # スタッフかどうかでシリアライザーを切り替え
+        if request.user.is_staff:
+            serializer = AdminUserSerializer(request.user)
+        else:
+            serializer = PrivateUserSerializer(request.user)
+        
+        return ResponseFormatter.success(data=serializer.data)
+    
+    @extend_schema(
+        request=PrivateUserSerializer,
+        responses={
+            200: OpenApiResponse(description="更新成功"),
+            400: OpenApiResponse(description="バリデーションエラー"),
+            401: OpenApiResponse(description="認証が必要です")
+        }
+    )
+    def put(self, request):
+        """ユーザー情報を更新"""
+        # スタッフかどうかでシリアライザーを切り替え
+        if request.user.is_staff:
+            serializer = AdminUserSerializer(
+                request.user, 
+                data=request.data, 
+                partial=True
+            )
+        else:
+            serializer = PrivateUserSerializer(
+                request.user, 
+                data=request.data, 
+                partial=True
+            )
+        
+        if not serializer.is_valid():
+            return ResponseFormatter.validation_error(
+                serializer.errors
+            )
+        
+        serializer.save()
+        
+        return ResponseFormatter.success(
+            data={
+                'user': serializer.data,
+                'message': 'プロフィールを更新しました'
+            }
+        )
+
+
+class VerifyTokenView(APIView):
+    """トークン検証エンドポイント"""
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="トークン有効"),
+            401: OpenApiResponse(description="トークン無効")
+        }
+    )
+    def post(self, request):
+        """トークンの有効性を検証"""
+        # Cookieからアクセストークンを取得
+        access_token = request.COOKIES.get(settings.AUTH_COOKIE_ACCESS_TOKEN)
+        
+        if not access_token:
+            return ResponseFormatter.unauthorized(
+                "トークンが必要です"
+            )
+        
+        # サービス層で検証
+        auth_service = AuthService()
+        result = auth_service.verify_token(access_token)
+        
+        if not result['success']:
+            return ResponseFormatter.unauthorized(
+                result.get('error', 'トークンが無効です')
+            )
+        
+        # ユーザー情報を含めて返す
+        user = result.get('user')
+        if user:
+            return ResponseFormatter.success(
+                data={
+                    'valid': True,
+                    'user': PublicUserSerializer(user).data
+                }
+            )
+        
+        return ResponseFormatter.success(data={'valid': True})

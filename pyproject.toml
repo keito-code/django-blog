@@ -1,5 +1,5 @@
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "myblog.settings.base"
+DJANGO_SETTINGS_MODULE = "myblog.settings.test"
 testpaths = ["blog", "accounts"]
 python_files = "test_*.py"
 addopts = "--ignore=lib --ignore=lib64 --ignore=venv -v"
