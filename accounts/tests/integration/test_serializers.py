@@ -41,7 +41,7 @@ class TestRegisterSerializer:
         serializer = RegisterSerializer(data=data)
         assert not serializer.is_valid()
         assert 'password' in serializer.errors
-        assert 'パスワードが一致しません' in serializer.errors['password'][0]
+        assert 'Password confirmation does not match' in serializer.errors['password'][0]
     
     def test_duplicate_email_validation(self, test_user):
         """メール重複チェック（DB必要）"""
@@ -55,7 +55,7 @@ class TestRegisterSerializer:
         serializer = RegisterSerializer(data=data)
         assert not serializer.is_valid()
         assert 'email' in serializer.errors
-        assert 'このメールアドレスは既に登録されています' in str(serializer.errors['email'])
+        assert 'Registration failed' in str(serializer.errors['email'])
     
     def test_create_user(self):
         """ユーザー作成のテスト"""

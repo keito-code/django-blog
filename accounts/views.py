@@ -6,7 +6,7 @@ Cookie+JWT認証を実装し、CSRF保護を適用する。
 """
 
 from django.middleware.csrf import get_token
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -49,10 +49,8 @@ class CSRFTokenView(APIView):
     def get(self, request):
         """CSRFトークンを取得"""
         csrf_token = get_token(request)
-        
-        # ResponseFormatterを使用して統一形式で返す
         response = ResponseFormatter.success(
-            data={'csrfToken': csrf_token}
+            data={'csrf_token': csrf_token}
         )
         
         # CSRFトークンをCookieに設定
@@ -67,7 +65,7 @@ class CSRFTokenView(APIView):
         
         return response
 
-
+@method_decorator(csrf_protect, name='dispatch')
 class LoginView(APIView):
     """ログインエンドポイント（Cookie認証）"""
     permission_classes = [AllowAny]
@@ -91,18 +89,18 @@ class LoginView(APIView):
     )
     def post(self, request):
         """ユーザーログイン処理"""
-        username = request.data.get('username')
+        email = request.data.get('email')
         password = request.data.get('password')
         
         # 必須フィールドチェック
-        if not username or not password:
+        if not email or not password:
             return ResponseFormatter.validation_error(
-                "ユーザー名とパスワードは必須です"
+                "メールアドレスとパスワードは必須です"
             )
         
         # サービス層で認証処理
         auth_service = AuthService()
-        result = auth_service.login(username, password)
+        result = auth_service.login(email, password)
         
         if not result['success']:
             return ResponseFormatter.unauthorized(
@@ -142,7 +140,7 @@ class LoginView(APIView):
         
         return response
 
-
+@method_decorator(csrf_protect, name='dispatch')
 class LogoutView(APIView):
     """ログアウトエンドポイント"""
     permission_classes = [IsAuthenticated]
@@ -181,7 +179,7 @@ class LogoutView(APIView):
         
         return response
 
-
+@method_decorator(csrf_protect, name='dispatch')
 class RefreshTokenView(APIView):
     """トークンリフレッシュエンドポイント"""
     permission_classes = [AllowAny]
@@ -243,7 +241,7 @@ class RefreshTokenView(APIView):
         
         return response
 
-
+@method_decorator(csrf_protect, name='dispatch')
 class RegisterView(APIView):
     """ユーザー登録エンドポイント"""
     permission_classes = [AllowAny]
@@ -304,7 +302,7 @@ class RegisterView(APIView):
         
         return response
 
-
+@method_decorator(csrf_protect, name='dispatch')
 class CurrentUserView(APIView):
     """現在のユーザー情報エンドポイント"""
     permission_classes = [IsAuthenticated]
@@ -333,7 +331,8 @@ class CurrentUserView(APIView):
             401: OpenApiResponse(description="認証が必要です")
         }
     )
-    def put(self, request):
+
+    def patch(self, request):
         """ユーザー情報を更新"""
         # スタッフかどうかでシリアライザーを切り替え
         if request.user.is_staff:
@@ -363,7 +362,6 @@ class CurrentUserView(APIView):
             }
         )
 
-
 class VerifyTokenView(APIView):
     """トークン検証エンドポイント"""
     permission_classes = [AllowAny]
@@ -374,8 +372,7 @@ class VerifyTokenView(APIView):
             401: OpenApiResponse(description="トークン無効")
         }
     )
-    def post(self, request):
-        """トークンの有効性を検証"""
+    def get(self, request):
         # Cookieからアクセストークンを取得
         access_token = request.COOKIES.get(settings.AUTH_COOKIE_ACCESS_TOKEN)
         
