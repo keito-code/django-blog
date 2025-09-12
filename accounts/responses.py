@@ -1,165 +1,85 @@
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any
+from django.http import JsonResponse
 
 
 class ResponseFormatter:
     """
-    統一されたレスポンス形式を提供するフォーマッタークラス
+    JSend仕様に準拠した統一レスポンス形式を提供するフォーマッタークラス
     
     レスポンス形式:
-    成功時: {"success": true, "data": {...}, "error": null}
-    失敗時: {"success": false, "data": null, "error": {"code": "...", "message": "..."}}
+    - success: {"status": "success", "data": {...}}
+    - fail: {"status": "fail", "data": {...}}  
+    - error: {"status": "error", "message": "...",}
     """
     
     @staticmethod
     def success(data: Optional[Dict[str, Any]] = None, 
-                message: Optional[str] = None) -> Dict[str, Any]:
-        """
-        成功レスポンスを生成
-        
-        Args:
-            data: レスポンスデータ
-            message: 成功メッセージ（オプション）
-            
-        Returns:
-            Dict: 統一形式の成功レスポンス
-        """
+                status_code: int = 200) -> JsonResponse:
+    
         response_data = {
-            "success": True,
-            "data": data if data else {},
-            "error": None,
+            "status": "success",
+            "data": data
         }
         
-        # メッセージがある場合はdataに含める
-        if message:
-            if isinstance(response_data["data"], dict):
-                response_data["data"]["message"] = message
-            else:
-                response_data["data"] = {"message": message}
-            
-        return response_data
+        return JsonResponse(response_data, status=status_code)
+    
+    @staticmethod
+    def fail(data: Dict[str, Any], status_code: int = 400) -> JsonResponse:
+
+        # views.pyでエラーメッセージを辞書として渡す必要がある
+        response_data = {
+            "status": "fail",
+            "data": data
+        }
+        
+        return JsonResponse(response_data, status=status_code)
     
     @staticmethod
     def error(message: str, 
-              code: str = "error", 
-              details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """
-        エラーレスポンスを生成
-        
-        Args:
-            message: エラーメッセージ
-            code: エラーコード
-            details: 詳細なエラー情報（オプション）
-            
-        Returns:
-            Dict: 統一形式のエラーレスポンス
-        """
-        error_data = {
-            "code": code,
-            "message": message,
-        }
-        
-        # 詳細情報がある場合は追加
-        if details:
-            error_data["details"] = details
-            
+              status_code: int = 500) -> JsonResponse:
+
         response_data = {
-            "success": False,
-            "data": None,
-            "error": error_data,
+            "status": "error",
+            "message": message
         }
         
-        return response_data
+        return JsonResponse(response_data, status=status_code)
     
     @staticmethod
-    def validation_error(errors: Union[Dict[str, Any], str]) -> Dict[str, Any]:
-        """
-        バリデーションエラー専用のレスポンスを生成
-        
-        Args:
-            errors: バリデーションエラー（辞書または文字列）
-            
-        Returns:
-            Dict: バリデーションエラーレスポンス
-        """
-        if isinstance(errors, str):
-            return ResponseFormatter.error(
-                message=errors,
-                code="validation_error"
-            )
-        
-        return ResponseFormatter.error(
-            message="Validation failed",
-            code="validation_error",
-            details=errors
+    def validation_error(errors: Dict[str, Any]) -> JsonResponse:
+        return ResponseFormatter.fail(
+            data=errors, 
+            status_code=422
         )
     
     @staticmethod
-    def unauthorized(message: str = "Authentication required") -> Dict[str, Any]:
-        """
-        認証エラー（401）レスポンスを生成
-        
-        Args:
-            message: エラーメッセージ
-            
-        Returns:
-            Dict: 401エラーレスポンス
-        """
+    def unauthorized(message: str = "Authentication required") -> JsonResponse:
         return ResponseFormatter.error(
             message=message,
-            code="unauthorized"
+            status_code=401
         )
     
     @staticmethod
-    def forbidden(message: str = "Access denied") -> Dict[str, Any]:
-        """
-        権限エラー（403）レスポンスを生成
-        
-        Args:
-            message: エラーメッセージ
-            
-        Returns:
-            Dict: 403エラーレスポンス
-        """
+    def forbidden(message: str = "Access denied") -> JsonResponse:
         return ResponseFormatter.error(
             message=message,
-            code="forbidden"
+            status_code=403
         )
     
     @staticmethod
-    def not_found(message: str = "Resource not found") -> Dict[str, Any]:
-        """
-        リソース不在（404）レスポンスを生成
-        
-        Args:
-            message: エラーメッセージ
-            
-        Returns:
-            Dict: 404エラーレスポンス
-        """
+    def not_found(message: str = "Resource not found") -> JsonResponse:
         return ResponseFormatter.error(
             message=message,
-            code="not_found"
+            status_code=404
         )
     
     @staticmethod
-    def server_error(message: str = "Internal server error",
-                    details: Optional[str] = None) -> Dict[str, Any]:
-        """
-        サーバーエラー（500）レスポンスを生成
-        
-        Args:
-            message: エラーメッセージ
-            details: エラーの詳細（開発環境でのみ表示推奨）
-            
-        Returns:
-            Dict: 500エラーレスポンス
-        """
-        error_details = None
-        if details:
-            error_details = {"error_details": details}
-            
+    def server_error(message: str = "Internal server error") -> JsonResponse:
         return ResponseFormatter.error(
             message=message,
-            code="server_error",
-            details=error_details
+            status_code=500
         )
+    
+    @staticmethod
+    def created(data: Optional[Dict[str, Any]] = None) -> JsonResponse:
+        return ResponseFormatter.success(data=data, status_code=201)
