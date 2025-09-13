@@ -13,7 +13,7 @@ from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema
-from .services import AuthService
+from .services import AuthService, UserService
 from .responses import ResponseFormatter
 from .serializers import (
     LoginSerializer,
@@ -92,17 +92,17 @@ class LoginView(APIView):
             email=validated_data['email'],
             password=validated_data['password']
         )
+        # サービスからの戻り値（辞書）で成功・失敗を判断
+        if not login_result['ok']:
+            # サービスが返した詳細なエラーメッセージを使う
+            return ResponseFormatter.unauthorized(login_result['error'])
 
-        # 失敗時 (Noneが返ってきた場合)
-        if login_result is None:
-            return ResponseFormatter.unauthorized("Authentication failed")
-
-        # 成功時（タプルが返ってきた場合）
-        user, tokens = login_result
+        user = login_result['user']
+        tokens = login_result['tokens']
 
         # レスポンス作成
         response = ResponseFormatter.success(
-                data={'user': PublicUserSerializer(user).data}
+                data=PublicUserSerializer(user).data
         )
         
         # HttpOnly Cookieにトークンを設定
@@ -145,11 +145,18 @@ class LogoutView(APIView):
         """ログアウト処理"""
         refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_TOKEN)
         
-        # トークンがあればブラックリストに追加
+        # サービス層での処理結果をハンドリング
         if refresh_token:
             auth_service = AuthService()
-            auth_service.logout(refresh_token)
-        
+            # 戻り値を受け取る
+            logout_ok = auth_service.logout(refresh_token)
+
+            # 失敗ならサーバーエラー
+            if not logout_ok:
+                return ResponseFormatter.server_error(
+                    "Logout process failed due to a server issue."
+                )
+
         # レスポンス作成
         response = ResponseFormatter.success()
         
@@ -188,20 +195,22 @@ class RefreshTokenView(APIView):
         if not refresh_token:
             return ResponseFormatter.unauthorized("Refresh token is required")
         
-        # サービス層でトークンリフレッシュ
-        auth_service = AuthService()
-        new_tokens = auth_service.refresh_tokens(refresh_token)
-
-        if new_tokens is None:
-            return ResponseFormatter.unauthorized("Invalid refresh token")
         
-        # セキュリティの観点からアクセストークンは返さない
+        auth_service = AuthService()
+        # サービスを呼び出し、結果を辞書で受け取る
+        refresh_result = auth_service.refresh_tokens(refresh_token)
+
+        if not refresh_result['ok']:
+            return ResponseFormatter.unauthorized(refresh_result['error'])
+
+        tokens = refresh_result['tokens']
+    
         response = ResponseFormatter.success()
 
         # 生成したレスポンスオブジェクトに、新しいトークンをCookieとして設定
         response.set_cookie(
             key=settings.AUTH_COOKIE_ACCESS_TOKEN,
-            value=new_tokens['access'],
+            value=tokens['access'],
             max_age=settings.AUTH_COOKIE_ACCESS_MAX_AGE,
             httponly=settings.AUTH_COOKIE_HTTPONLY,
             secure=settings.AUTH_COOKIE_SECURE,
@@ -212,7 +221,7 @@ class RefreshTokenView(APIView):
         
         response.set_cookie(
             key=settings.AUTH_COOKIE_REFRESH_TOKEN,
-            value=new_tokens['refresh'],
+            value=tokens['refresh'],
             max_age=settings.AUTH_COOKIE_REFRESH_MAX_AGE,
             httponly=settings.AUTH_COOKIE_HTTPONLY,
             secure=settings.AUTH_COOKIE_SECURE,
@@ -252,15 +261,16 @@ class RegisterView(APIView):
 
         # 辞書から受け取る
         user = register_result['user']
-        new_tokens = register_result['tokens'] 
+        tokens = register_result['tokens'] 
 
-        response_data = PublicUserSerializer(user).data
-        response = ResponseFormatter.created(data=response_data)
+        response = ResponseFormatter.created(
+            data=PublicUserSerializer(user).data
+        )
         
         # Cookie設定
         response.set_cookie(
             key=settings.AUTH_COOKIE_ACCESS_TOKEN,
-            value=new_tokens['access'],
+            value=tokens['access'],
             max_age=settings.AUTH_COOKIE_ACCESS_MAX_AGE,
             httponly=settings.AUTH_COOKIE_HTTPONLY,
             secure=settings.AUTH_COOKIE_SECURE,
@@ -271,7 +281,7 @@ class RegisterView(APIView):
         
         response.set_cookie(
             key=settings.AUTH_COOKIE_REFRESH_TOKEN,
-            value=new_tokens['refresh'],
+            value=tokens['refresh'],
             max_age=settings.AUTH_COOKIE_REFRESH_MAX_AGE,
             httponly=settings.AUTH_COOKIE_HTTPONLY,
             secure=settings.AUTH_COOKIE_SECURE,
@@ -310,8 +320,8 @@ class CurrentUserView(APIView):
     )
     def get(self, request):
         """現在のユーザー情報を取得"""
-        serializer_class = self.get_serializer_class()
-        serializer = serializer_class(request.user)
+        user_serializer = self.get_user_serializer()
+        serializer = user_serializer(request.user)
         return ResponseFormatter.success(data=serializer.data)
     
     @extend_schema(
@@ -325,8 +335,8 @@ class CurrentUserView(APIView):
 
     def patch(self, request):
         """ユーザー情報を更新"""
-        serializer_class = self.get_serializer_class()
-        serializer = serializer_class(
+        user_serializer = self.get_user_serializer()
+        serializer = user_serializer(
             request.user, 
             data=request.data,
             partial=True
@@ -335,8 +345,12 @@ class CurrentUserView(APIView):
         if not serializer.is_valid():
             return ResponseFormatter.validation_error(serializer.errors)
 
-        # データベースを更新し、更新後のuserインスタンスを受け取る
-        updated_user = serializer.save()
+        # --- サービス層を呼び出して更新を依頼 ---
+        user_service = UserService()
+        updated_user = user_service.update_user(
+            user=request.user, 
+            validated_data=serializer.validated_data
+        )
 
         # --- 出力処理 ---
         if request.user.is_staff:
@@ -366,12 +380,8 @@ class VerifyTokenView(APIView):
         auth_service = AuthService()
         verification_result = auth_service.verify_token(access_token)
         
-        if not verification_result['success']:
+        if not verification_result['ok']:
             return ResponseFormatter.unauthorized(
-                    verification_result.get('error', 'Invalid token')
-                )
+                    verification_result['error'])
         
-        # 単一責任に従い、検証結果だけを返す
-        response_data = {'valid': True}
-        return ResponseFormatter.success(data=response_data)
-        
+        return ResponseFormatter.success(data={'valid': True})
