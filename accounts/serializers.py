@@ -4,10 +4,6 @@ from django.contrib.auth.password_validation import validate_password
 
 User = get_user_model()
 
-class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField(required=True)
-    password = serializers.CharField(required=True, write_only=True)
-
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         required=True,
@@ -56,6 +52,9 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         return User.objects.create_user(**validated_data) # 展開して渡す
 
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(required=True, write_only=True)
 
 class PublicUserSerializer(serializers.ModelSerializer):
 
