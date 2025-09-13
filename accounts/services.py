@@ -3,141 +3,146 @@
 ビジネスロジックをシンプルに実装
 """
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.exceptions import TokenError
-from django.conf import settings
-from django.contrib.auth import get_user_model
+from rest_framework_simplejwt.exceptions import AccessToken, TokenError
+from django.contrib.auth import authenticate, get_user_model
 import logging
-from typing import Optional, Dict
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
 class AuthService:
-    """認証関連のビジネスロジック"""
-    
-    def login(self, email: str, password: str) -> Optional[tuple[User, Dict[str, str]]]:
-        """
-        ユーザーログイン処理
-        
-        Returns:
-            成功時: (user, {'access': token, 'refresh': token})
-            失敗時: None
-        """
-        # メールアドレスで検索（大文字小文字無視）
-        user = User.objects.filter(email__iexact=email).first()
-        
-        if not user or not user.check_password(password):
-            logger.warning(f"ログイン失敗: {email}")
-            return None
-            
-        if not user.is_active:
-            logger.warning(f"非アクティブユーザーのログイン試行: {email}")
-            return None
-        
-        # SimpleJWTでトークン生成
-        refresh = RefreshToken.for_user(user)
-        
-        logger.info(f"ログイン成功: {email}")
-        return user, {
-            'access': str(refresh.access_token),
-            'refresh': str(refresh)
-        }
-    
-    def refresh_tokens(self, refresh_token: str) -> Optional[Dict[str, str]]:
-        """
-        トークンのリフレッシュ処理（アクセストークン + リフレッシュトークン両方を再発行）
-        
-        Returns:
-            成功時: {'access': new_token, 'refresh': new_token}
-            失敗時: None
-        """
-        try:
-            refresh = RefreshToken(refresh_token)
+    """
+    認証関連のビジネスロジックを扱うサービス層。
 
-             # 新しいアクセストークンを生成する必要がある
-            new_access_token = refresh.access_token
+    各メソッドは、処理の結果として常に辞書を返す。
+    辞書には必ず 'ok' (True/False) キーが含まれ、処理の成否を示す。
+    これはビュー層への内部的な報告であり、最終的なHTTPレスポンスの形式とは独立している。
+    """
 
-            # ROTATE_REFRESH_TOKENS が有効な場合
-            if settings.SIMPLE_JWT.get('ROTATE_REFRESH_TOKENS'):
-                # 古いトークンをブラックリストに追加
-                if settings.SIMPLE_JWT.get('BLACKLIST_AFTER_ROTATION'):
-                    refresh.blacklist()
-                
-                user_id = refresh['user_id']
-                user = User.objects.get(id=user_id)
-
-                new_refresh = RefreshToken.for_user(user)
-                
-                return {
-                    'access': str(new_access_token),
-                    'refresh': str(new_refresh)
-                }
-            else:
-                # ローテーションなし
-                return {
-                    'access': str(new_access_token),
-                    'refresh': refresh_token
-                }
-                
-        except Exception as e:
-            logger.warning(f"トークンリフレッシュ失敗: {e}")
-            return None
-    
-    def logout(self, refresh_token: str) -> bool:
+    def register(self, username, email, password):
         """
-        ログアウト処理（トークンをブラックリスト登録）
-        
-        Returns:
-            常にTrue（エラーでもユーザビリティ重視）
+        ユーザーを作成し、トークンを生成して辞書として返す
         """
-        try:
-            refresh = RefreshToken(refresh_token)
-            refresh.blacklist()
-            logger.info("ログアウト: トークンをブラックリスト登録")
-        except (TokenError, AttributeError) as e:
-            # エラーでも成功として扱う
-            logger.debug(f"ログアウト時のエラー（無視）: {e}")
-        return True
-
-
-class UserService:
-    """ユーザー管理のビジネスロジック"""
-    
-    def create_user(self, email: str, password: str, username: str) -> User:
-        """
-        新規ユーザー作成
-        
-        Raises:
-            ValueError: メール/ユーザー名が既存の場合
-        """
-        if User.objects.filter(email__iexact=email).exists():
-            logger.warning(f"メール重複: {email}")
-            raise ValueError("Email already exists")
-        
-        if User.objects.filter(username__iexact=username).exists():
-            logger.warning(f"ユーザー名重複: {username}")
-            raise ValueError("Username already exists")
-        
+        # ユーザー作成
         user = User.objects.create_user(
-            email=email,
             username=username,
+            email=email, 
             password=password
         )
         
-        logger.info(f"ユーザー作成成功: {email}")
-        return user
-    
-    def get_user_by_email(self, email: str) -> Optional[User]:
-        """メールでユーザー取得"""
-        return User.objects.filter(email__iexact=email).first()
-    
-    def update_user(self, user: User, **kwargs) -> User:
-        """ユーザー情報更新"""
-        for field, value in kwargs.items():
-            if hasattr(user, field):
-                setattr(user, field, value)
+        # トークン生成
+        refresh_obj = RefreshToken.for_user(user)
         
+        # ビューが使いやすいように、結果を辞書に整形して返す
+        return {
+            'ok': True,
+            'user': user,
+            'tokens': {
+                'access': str(refresh_obj.access_token),
+                'refresh': str(refresh_obj)
+            }
+        }
+    
+    def login(self, email, password):
+        """
+        ユーザーを認証し、結果を辞書で返す
+        """
+        # authenticateはユーザーオブジェクトかNoneを返す
+        user = authenticate(email=email, password=password)
+        
+        # 認証失敗（ユーザーが存在しない、またはパスワードが違う）
+        if user is None:
+            logger.warning(f"ログイン失敗: {email}")
+            return {'ok': False, 'error': 'Authentication failed'}
+            
+        if not user.is_active:
+            logger.warning(f"非アクティブユーザーのログイン試行: {email}")
+            return {'ok': False, 'error': 'User account is inactive'}
+        
+        refresh_obj = RefreshToken.for_user(user)
+        
+        logger.info(f"ログイン成功: {email}")
+        return {
+            'ok': True,
+            'user': user,
+            'tokens': {
+                'access': str(refresh_obj.access_token),
+                'refresh': str(refresh_obj)
+            }
+        }
+
+    def logout(self, refresh_token: str) -> bool:
+        """
+        ログアウト処理（トークンをブラックリスト登録）
+        """
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            logger.info("ログアウト成功: トークンをブラックリストに登録しました。")
+            return True
+        except TokenError:
+            # トークン自体が既に無効な場合。クライアントはログアウト状態になれば良いので、
+            # サーバー側では成功として扱っても問題ない。
+            logger.debug("ログアウト試行: 既に無効なトークンが提供されました。")
+            return True
+        except Exception as e:
+            # データベースエラーなど、予期せぬ問題が発生した場合。
+            # これは問題なので、明確にエラーログを残し、失敗したことを伝える。
+            logger.error(f"トークンのブラックリスト登録中に予期せぬエラーが発生: {e}", exc_info=True)
+            return False
+    
+    def refresh_tokens(self, refresh_token: str) -> dict:
+        """
+        トークンをリフレッシュし、結果を辞書で返す
+        """
+        try:
+            old_refresh = RefreshToken(refresh_token)
+
+            # 常にブラックリストに追加
+            old_refresh.blacklist()
+
+            # 常に新しいリフレッシュトークンを生成
+            # Note: 既存トークンを更新(old_refresh.set_jti(), set_exp())する方法もあるが、
+            #       新しいオブジェクトを生成する方が意図が明確で分かりやすい。
+            new_refresh = RefreshToken.for_user(old_refresh.user)
+
+            return {
+                'ok': True,
+                'tokens': {
+                    'access': str(new_refresh.access_token),
+                    'refresh': str(new_refresh)
+                }
+            }
+                
+        except Exception as e:
+            logger.warning(f"トークンリフレッシュ失敗: {e}")
+            return {'ok': False, 'error': 'Invalid or expired refresh token'}
+    
+    def verify_token(self, token: str) -> dict:
+        """
+        アクセストークンを検証し、結果を辞書で返す
+        """
+        try:
+            # AccessTokenオブジェクトに変換を試みる
+            # 失敗するとTokenErrorが発生
+            AccessToken(token)
+            return {'ok': True}
+        except TokenError as e:
+            # 期限切れ、偽造、ブラックリストなど、無効なトークン
+            logger.debug(f"トークン検証失敗: {e}")
+            return {'ok': False, 'error': 'Token is invalid or expired'}
+
+class UserService:
+    """ユーザー管理関連のビジネスロジック"""
+        
+    def update_user(self, user: User, validated_data: dict) -> User:
+        """
+        バリデーション済みのデータでユーザー情報を更新する
+        """
+        for field, value in validated_data.items():
+            setattr(user, field, value)
+                
         user.save()
         logger.info(f"ユーザー更新: {user.email}")
         return user
