@@ -90,7 +90,8 @@ class LoginView(APIView):
         auth_service = AuthService()
         login_result = auth_service.login(
             email=validated_data['email'],
-            password=validated_data['password']
+            password=validated_data['password'],
+            request=request
         )
         # サービスからの戻り値（辞書）で成功・失敗を判断
         if not login_result['ok']:
@@ -149,12 +150,12 @@ class LogoutView(APIView):
         if refresh_token:
             auth_service = AuthService()
             # 戻り値を受け取る
-            logout_ok = auth_service.logout(refresh_token)
+            logout_result = auth_service.logout(refresh_token)
 
             # 失敗ならサーバーエラー
-            if not logout_ok:
+            if not logout_result['ok']:
                 return ResponseFormatter.server_error(
-                    "Logout process failed due to a server issue."
+                    logout_result['error']
                 )
 
         # レスポンス作成

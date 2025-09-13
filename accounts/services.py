@@ -2,8 +2,8 @@
 認証サービス層（SimpleJWT版）
 ビジネスロジックをシンプルに実装
 """
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.exceptions import AccessToken, TokenError
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate, get_user_model
 import logging
 
@@ -44,12 +44,12 @@ class AuthService:
             }
         }
     
-    def login(self, email, password):
+    def login(self, email, password, request=None):
         """
         ユーザーを認証し、結果を辞書で返す
         """
         # authenticateはユーザーオブジェクトかNoneを返す
-        user = authenticate(email=email, password=password)
+        user = authenticate(request=request, email=email, password=password)
         
         # 認証失敗（ユーザーが存在しない、またはパスワードが違う）
         if user is None:
@@ -72,25 +72,26 @@ class AuthService:
             }
         }
 
-    def logout(self, refresh_token: str) -> bool:
+    def logout(self, refresh_token: str) -> dict:
         """
         ログアウト処理（トークンをブラックリスト登録）
+        結果を辞書で返す
         """
         try:
             token = RefreshToken(refresh_token)
             token.blacklist()
             logger.info("ログアウト成功: トークンをブラックリストに登録しました。")
-            return True
+            return {'ok': True}
         except TokenError:
             # トークン自体が既に無効な場合。クライアントはログアウト状態になれば良いので、
             # サーバー側では成功として扱っても問題ない。
             logger.debug("ログアウト試行: 既に無効なトークンが提供されました。")
-            return True
+            return {'ok': True}
         except Exception as e:
             # データベースエラーなど、予期せぬ問題が発生した場合。
             # これは問題なので、明確にエラーログを残し、失敗したことを伝える。
             logger.error(f"トークンのブラックリスト登録中に予期せぬエラーが発生: {e}", exc_info=True)
-            return False
+            return {'ok': False, 'error': 'Logout process failed due to a server issue'}
     
     def refresh_tokens(self, refresh_token: str) -> dict:
         """
