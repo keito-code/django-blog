@@ -113,13 +113,14 @@ class TestPublicUserSerializer:
         fields = set(serializer.fields.keys())
         
         # 必要なフィールド
-        assert fields == {'id', 'username', 'date_joined'}
+        assert fields == {'id', 'date_joined'}
         
         # 除外すべきフィールド
         assert 'email' not in fields
         assert 'password' not in fields
         assert 'is_staff' not in fields
         assert 'is_superuser' not in fields
+        assert 'username' not in fields
     
     @pytest.mark.django_db
     def test_serialize_user(self, test_user):
@@ -128,7 +129,8 @@ class TestPublicUserSerializer:
         data = serializer.data
         
         assert data['id'] == test_user.id
-        assert data['username'] == test_user.username
+        assert 'date_joined' in data
+        assert isinstance(data['date_joined'], str)
         assert 'email' not in data
         assert 'is_staff' not in data  # セキュリティ確認
 
@@ -167,28 +169,14 @@ class TestUpdateUserSerializer:
         """重複なしでの更新"""
         serializer = UpdateUserSerializer(
             test_user,
-            data={'username': 'newusername'},
+            data={'email': 'newemail@example.com'},
             partial=True
         )
         assert serializer.is_valid()
-        assert serializer.validated_data['username'] == 'newusername'
+        assert serializer.validated_data['email'] == 'newemail@example.com'
     
-    def test_update_with_duplicate_username(self, test_user, another_user):
-        """他ユーザーと重複するユーザー名への更新"""
-        serializer = UpdateUserSerializer(
-            test_user,
-            data={'username': another_user.username},
-            partial=True
-        )
-
-        assert not serializer.is_valid()
-        assert 'username' in serializer.errors
-        assert 'Update failed' in str(serializer.errors['username'])
-
     def test_update_with_duplicate_email(self, test_user, another_user):
-        """他ユーザーと重複するメールアドレスへの更新"""
-        from accounts.serializers import UpdateUserSerializer
-        
+        """他ユーザーと重複するメールアドレスへの更新"""        
         serializer = UpdateUserSerializer(
             test_user,
             data={'email': another_user.email},
@@ -199,20 +187,8 @@ class TestUpdateUserSerializer:
         assert 'email' in serializer.errors
         assert 'Update failed' in str(serializer.errors['email'])
 
-    def test_update_own_username_unchanged(self, test_user):
-        """自分の同じユーザー名での更新（エラーにならない）"""
-        from accounts.serializers import UpdateUserSerializer
-        
-        serializer = UpdateUserSerializer(
-            test_user,
-            data={'username': test_user.username},
-            partial=True
-        )
-        assert serializer.is_valid()
-
     def test_email_normalization_on_update(self, test_user):
         """更新時のメールアドレス正規化"""
-        from accounts.serializers import UpdateUserSerializer
         
         serializer = UpdateUserSerializer(
             test_user,
@@ -239,7 +215,6 @@ class TestAdminUpdateUserSerializer:
 
     def test_admin_can_update_is_staff(self, test_user):
         """is_staffフィールドの更新"""
-        from accounts.serializers import AdminUpdateUserSerializer
         
         serializer = AdminUpdateUserSerializer(
             test_user,
@@ -252,7 +227,6 @@ class TestAdminUpdateUserSerializer:
 
     def test_admin_fields_available(self):
         """管理者用フィールドが含まれることの確認"""
-        from accounts.serializers import AdminUpdateUserSerializer
         
         serializer = AdminUpdateUserSerializer()
         fields = set(serializer.fields.keys())

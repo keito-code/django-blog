@@ -72,23 +72,17 @@ class PrivateUserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 class UpdateUserSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(required=False)
     email = serializers.EmailField(required=False)
 
     class Meta:
         model = User
-        fields = ('email')  
+        fields = ['email']  
 
     def validate_email(self, value):
         normalized = value.strip().lower()
         if User.objects.filter(email__iexact=normalized).exclude(pk=self.instance.pk).exists():
             raise serializers.ValidationError("Update failed. Please check your input and try again.")
         return normalized
-
-    def validate_username(self, value):
-        if User.objects.filter(username__iexact=value).exclude(pk=self.instance.pk).exists():
-            raise serializers.ValidationError("Update failed. Please check your input and try again.")
-        return value
 
 class AdminUserSerializer(serializers.ModelSerializer):
 
