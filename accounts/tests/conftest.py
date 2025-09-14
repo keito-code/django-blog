@@ -46,5 +46,14 @@ def csrf_token(client):
     
     return token
 
+@pytest.fixture
+def another_user(db):
+    """重複チェックテスト用の別ユーザー"""
+    return User.objects.create_user(
+        username='anotheruser',
+        email='another@example.com',
+        password='anotherpass123'
+    )
+
 
 

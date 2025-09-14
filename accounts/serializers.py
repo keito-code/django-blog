@@ -72,6 +72,7 @@ class PrivateUserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 class UpdateUserSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(required=False)
     email = serializers.EmailField(required=False)
 
     class Meta:
@@ -97,6 +98,8 @@ class AdminUserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 class AdminUpdateUserSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
 
     class Meta:
         model = User

@@ -4,6 +4,9 @@ from accounts.serializers import (
     RegisterSerializer,
     PublicUserSerializer,
     PrivateUserSerializer,
+    UpdateUserSerializer,
+    AdminUpdateUserSerializer,
+    SuccessResponseSerializer
 )
 
 User = get_user_model()
@@ -41,8 +44,8 @@ class TestRegisterSerializer:
 
         serializer = RegisterSerializer(data=data)
         assert not serializer.is_valid()
-        assert 'password' in serializer.errors
-        assert 'Password confirmation does not match' in serializer.errors['password'][0]
+        assert 'password_confirmation' in serializer.errors
+        assert 'Password confirmation does not match' in serializer.errors['password_confirmation'][0]
     
     def test_duplicate_email_validation(self, test_user):
         """メール重複チェック（DB必要）"""
@@ -57,6 +60,31 @@ class TestRegisterSerializer:
         assert not serializer.is_valid()
         assert 'email' in serializer.errors
         assert 'Registration failed' in str(serializer.errors['email'])
+
+    def test_email_normalization(self):
+        """メールアドレスの正規化（空白除去・小文字化）"""
+        data = {
+            'email': '  TEST@EXAMPLE.COM  ',  # 空白と大文字
+            'username': 'testuser',
+            'password': 'Pass123!',
+            'password_confirmation': 'Pass123!'
+        }
+        serializer = RegisterSerializer(data=data)
+        assert serializer.is_valid()
+        assert serializer.validated_data['email'] == 'test@example.com'
+
+    def test_username_case_sensitive_duplicate_check(self, test_user):
+        """ユーザー名の大文字小文字を区別しない重複チェック"""
+        data = {
+            'email': 'new@example.com',
+            'username': test_user.username.upper(),  # 大文字に変換
+            'password': 'Pass123!',
+            'password_confirmation': 'Pass123!'
+        }
+        serializer = RegisterSerializer(data=data)
+        assert not serializer.is_valid()
+        assert 'username' in serializer.errors
+        assert 'Registration failed' in str(serializer.errors['username'])
     
     def test_create_user(self):
         """ユーザー作成のテスト"""
@@ -85,14 +113,13 @@ class TestPublicUserSerializer:
         fields = set(serializer.fields.keys())
         
         # 必要なフィールド
-        assert fields == {'id', 'username'}
+        assert fields == {'id', 'username', 'date_joined'}
         
         # 除外すべきフィールド
         assert 'email' not in fields
         assert 'password' not in fields
         assert 'is_staff' not in fields
         assert 'is_superuser' not in fields
-        assert 'date_joined' not in fields
     
     @pytest.mark.django_db
     def test_serialize_user(self, test_user):
@@ -131,3 +158,116 @@ class TestPrivateUserSerializer:
         assert data['email'] == test_user.email  # 本人なのでメール含む
         assert 'date_joined' in data
         assert 'password' not in data
+
+@pytest.mark.django_db
+class TestUpdateUserSerializer:
+    """UpdateUserSerializerのテスト"""
+    
+    def test_update_without_duplicate(self, test_user):
+        """重複なしでの更新"""
+        serializer = UpdateUserSerializer(
+            test_user,
+            data={'username': 'newusername'},
+            partial=True
+        )
+        assert serializer.is_valid()
+        assert serializer.validated_data['username'] == 'newusername'
+    
+    def test_update_with_duplicate_username(self, test_user, another_user):
+        """他ユーザーと重複するユーザー名への更新"""
+        serializer = UpdateUserSerializer(
+            test_user,
+            data={'username': another_user.username},
+            partial=True
+        )
+
+        assert not serializer.is_valid()
+        assert 'username' in serializer.errors
+        assert 'Update failed' in str(serializer.errors['username'])
+
+    def test_update_with_duplicate_email(self, test_user, another_user):
+        """他ユーザーと重複するメールアドレスへの更新"""
+        from accounts.serializers import UpdateUserSerializer
+        
+        serializer = UpdateUserSerializer(
+            test_user,
+            data={'email': another_user.email},
+            partial=True
+        )
+
+        assert not serializer.is_valid()
+        assert 'email' in serializer.errors
+        assert 'Update failed' in str(serializer.errors['email'])
+
+    def test_update_own_username_unchanged(self, test_user):
+        """自分の同じユーザー名での更新（エラーにならない）"""
+        from accounts.serializers import UpdateUserSerializer
+        
+        serializer = UpdateUserSerializer(
+            test_user,
+            data={'username': test_user.username},
+            partial=True
+        )
+        assert serializer.is_valid()
+
+    def test_email_normalization_on_update(self, test_user):
+        """更新時のメールアドレス正規化"""
+        from accounts.serializers import UpdateUserSerializer
+        
+        serializer = UpdateUserSerializer(
+            test_user,
+            data={'email': '  UPDATED@EXAMPLE.COM  '},
+            partial=True
+        )
+        assert serializer.is_valid()
+        assert serializer.validated_data['email'] == 'updated@example.com'
+
+@pytest.mark.django_db
+class TestAdminUpdateUserSerializer:
+    """管理者用更新シリアライザーのテスト"""
+    
+    def test_admin_can_update_is_active(self, test_user):
+        """is_activeフィールドの更新"""
+        serializer = AdminUpdateUserSerializer(
+            test_user,
+            data={'is_active': False},
+            partial=True
+        )
+        assert serializer.is_valid()
+        assert 'is_active' in serializer.validated_data
+        assert serializer.validated_data['is_active'] is False
+
+    def test_admin_can_update_is_staff(self, test_user):
+        """is_staffフィールドの更新"""
+        from accounts.serializers import AdminUpdateUserSerializer
+        
+        serializer = AdminUpdateUserSerializer(
+            test_user,
+            data={'is_staff': True},
+            partial=True
+        )
+        assert serializer.is_valid()
+        assert 'is_staff' in serializer.validated_data
+        assert serializer.validated_data['is_staff'] is True
+
+    def test_admin_fields_available(self):
+        """管理者用フィールドが含まれることの確認"""
+        from accounts.serializers import AdminUpdateUserSerializer
+        
+        serializer = AdminUpdateUserSerializer()
+        fields = set(serializer.fields.keys())
+        
+        # 管理者用フィールドが含まれる
+        assert 'is_active' in fields
+        assert 'is_staff' in fields
+        assert 'username' in fields
+        assert 'email' in fields
+
+class TestDocumentationSerializers:
+    """APIドキュメント用シリアライザーの基本確認"""
+    
+    def test_success_response_structure(self):
+        """成功レスポンスの構造"""
+        serializer = SuccessResponseSerializer()
+        assert 'status' in serializer.fields
+        assert 'data' in serializer.fields
