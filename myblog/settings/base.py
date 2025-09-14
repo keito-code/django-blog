@@ -143,9 +143,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-        'OPTIONS': {
-            'min_length': 8,  # 8文字以上に設定
-        }
+        'OPTIONS': {'min_length': 8}  # 8文字以上
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -241,6 +239,7 @@ AXES_RESET_ON_SUCCESS = True  # 成功したらカウントリセット
 
 # 認証バックエンドの設定
 AUTHENTICATION_BACKENDS = [
+    'accounts.backends.EmailBackend',
     'django.contrib.auth.backends.ModelBackend',
     'axes.backends.AxesBackend',
 ]

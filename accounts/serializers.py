@@ -60,7 +60,7 @@ class PublicUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'date_joined')
+        fields = ('id', 'date_joined')
         read_only_fields = fields
 
 
@@ -77,7 +77,7 @@ class UpdateUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'email')  
+        fields = ('email')  
 
     def validate_email(self, value):
         normalized = value.strip().lower()
