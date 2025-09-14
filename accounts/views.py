@@ -39,6 +39,7 @@ User = get_user_model()
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class CSRFTokenView(APIView):
     """CSRFトークン取得エンドポイント"""
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     @extend_schema(
@@ -69,6 +70,7 @@ class CSRFTokenView(APIView):
 @method_decorator(csrf_protect, name='dispatch')
 class LoginView(APIView):
     """ログインエンドポイント（Cookie認証）"""
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     @extend_schema(
@@ -134,6 +136,7 @@ class LoginView(APIView):
 @method_decorator(csrf_protect, name='dispatch')
 class LogoutView(APIView):
     """ログアウトエンドポイント"""
+    # authentication_classes不要（グローバル設定を使用）
     permission_classes = [IsAuthenticated]
     
     @extend_schema(
@@ -180,6 +183,7 @@ class LogoutView(APIView):
 @method_decorator(csrf_protect, name='dispatch')
 class RefreshTokenView(APIView):
     """トークンリフレッシュエンドポイント"""
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     @extend_schema(
@@ -235,6 +239,7 @@ class RefreshTokenView(APIView):
 @method_decorator(csrf_protect, name='dispatch')
 class RegisterView(APIView):
     """ユーザー登録エンドポイント"""
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     @extend_schema(
@@ -296,6 +301,7 @@ class RegisterView(APIView):
 @method_decorator(csrf_protect, name='dispatch')
 class CurrentUserView(APIView):
     """現在のユーザー情報エンドポイント"""
+    # authentication_classes不要（グローバル設定を使用）
     permission_classes = [IsAuthenticated]
 
     def get_user_serializer(self):
@@ -363,6 +369,7 @@ class CurrentUserView(APIView):
 
 class VerifyTokenView(APIView):
     """トークン検証エンドポイント"""
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     @extend_schema(
