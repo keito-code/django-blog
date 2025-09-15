@@ -25,6 +25,8 @@ DATABASES = {
     }
 }
 
+LANGUAGE_CODE = 'en-us'
+
 # セキュリティ設定を無効化（テスト環境）
 SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = False

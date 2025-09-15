@@ -1,4 +1,4 @@
-
+from rest_framework.exceptions import ParseError, ValidationError
 from rest_framework.views import exception_handler
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
@@ -6,9 +6,21 @@ from accounts.responses import ResponseFormatter
 
 def custom_exception_handler(exc, context):
     """
-    全てのDRF例外を JSend形式 に統一するカスタムハンドラ（改善版）
+    DRF例外を JSend形式 に統一するカスタムハンドラ
     """
-    # まずDRFのデフォルトハンドラを呼び出す
+
+    # バリデーションエラー -> 422
+    if isinstance(exc, ValidationError):
+        return ResponseFormatter.validation_error(exc.detail)
+
+    # JSONパースエラー -> 400
+    if isinstance(exc, ParseError):
+        return ResponseFormatter.error(
+            message=str(exc.detail),
+            status_code=400
+        )
+
+    # 上記以外の場合、DRFのデフォルトハンドラを呼び出す
     response = exception_handler(exc, context)
 
     # DRFが処理できない例外をここで処理
@@ -20,17 +32,12 @@ def custom_exception_handler(exc, context):
             return ResponseFormatter.not_found(str(exc) or "Resource not found.")
         
         # 予期せぬエラーは500として返す
-        return ResponseFormatter.server_error() # デフォルトメッセージを使う
+        return ResponseFormatter.server_error() 
 
-    # DRFが生成したレスポンスをカスタム形式に変換
-    # DRFの具体的なエラーメッセージを活かす
+    # その他のDRFエラーをカスタム形式に変換
     detail = response.data.get('detail', None)
 
-    if response.status_code == 400:
-        # バリデーションエラーはresponse.dataに詳細が含まれる
-        return ResponseFormatter.validation_error(response.data)
-    
-    elif response.status_code == 401:
+    if response.status_code == 401:
         return ResponseFormatter.unauthorized(detail or "Authentication required.")
         
     elif response.status_code == 403:
