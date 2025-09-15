@@ -139,6 +139,10 @@ class TestAuthService:
         # Setup
         mock_old_refresh = Mock()
         mock_old_refresh.check_blacklist = Mock()  # ブラックリストチェック成功
+        mock_old_refresh.blacklist = Mock() 
+
+        # payloadにuser_idを設定
+        mock_old_refresh.payload = {'user_id': 1}
         
         mock_new_refresh = Mock()
         mock_new_refresh.access_token = 'new_access_token'
@@ -146,18 +150,23 @@ class TestAuthService:
 
         # ユーザーのモック
         mock_user = Mock()
-        mock_old_refresh.user = mock_user
+        mock_user.id = 1
         
         mock_refresh_token_class.return_value = mock_old_refresh
         mock_refresh_token_class.for_user.return_value = mock_new_refresh
         
-        # Execute
-        result = service.refresh_tokens('old_refresh_token')
+        # User.objects.getのモック
+        with patch('accounts.services.User.objects.get', return_value=mock_user):
+            result = service.refresh_tokens('old_refresh_token')
         
         # Assert - 新しい辞書形式
         assert result['ok'] is True
         assert result['tokens']['access'] == 'new_access_token'
         assert result['tokens']['refresh'] == 'new_refresh_token'
+
+        # blacklistが呼ばれたことを確認
+        mock_old_refresh.blacklist.assert_called_once()
+        mock_refresh_token_class.for_user.assert_called_once_with(mock_user)
 
     @patch('accounts.services.RefreshToken')
     def test_refresh_tokens_with_invalid_token(self, mock_refresh_token_class, service):

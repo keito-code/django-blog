@@ -100,13 +100,17 @@ class AuthService:
         try:
             old_refresh = RefreshToken(refresh_token)
 
+            # user_idからユーザーを取得
+            user_id = old_refresh.payload.get('user_id')
+            user = User.objects.get(id=user_id)
+
             # 常にブラックリストに追加
             old_refresh.blacklist()
 
             # 常に新しいリフレッシュトークンを生成
             # Note: 既存トークンを更新(old_refresh.set_jti(), set_exp())する方法もあるが、
             #       新しいオブジェクトを生成する方が意図が明確で分かりやすい。
-            new_refresh = RefreshToken.for_user(old_refresh.user)
+            new_refresh = RefreshToken.for_user(user)
 
             return {
                 'ok': True,
@@ -116,6 +120,9 @@ class AuthService:
                 }
             }
                 
+        except User.DoesNotExist:
+            logger.warning("ユーザーが見つかりません")
+            return {'ok': False, 'error': 'User not found'}
         except Exception as e:
             logger.warning(f"トークンリフレッシュ失敗: {e}")
             return {'ok': False, 'error': 'Invalid or expired refresh token'}
