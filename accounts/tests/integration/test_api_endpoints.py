@@ -207,6 +207,139 @@ class TestAuthenticationFlowIntegration:
         # ユーザーが作成されていないことを確認
         assert not User.objects.filter(email='mismatch@example.com').exists()
 
+@pytest.mark.django_db
+class TestTokenEdgeCases:
+    """トークン関連のエッジケーステスト"""
+    
+    def test_blacklisted_refresh_token(self, client, test_user):
+        """ブラックリスト済みトークンのテスト"""
+        # CSRFトークン取得
+        csrf_response = client.get(reverse('accounts:csrf'))
+        csrf_token = csrf_response.json()['data']['csrf_token']
+        
+        # ログイン
+        login_response = client.post(
+            reverse('accounts:login'),
+            data=json.dumps({
+                'email': test_user.email,
+                'password': 'testpass123'
+            }),
+            content_type='application/json',
+            HTTP_X_CSRFTOKEN=csrf_token
+        )
+        assert login_response.status_code == 200
+        
+        # リフレッシュトークンを取得
+        refresh_token = login_response.cookies[settings.AUTH_COOKIE_REFRESH_TOKEN].value
+        
+        # 一度リフレッシュ（これでブラックリストに入る）
+        client.cookies[settings.AUTH_COOKIE_REFRESH_TOKEN] = refresh_token
+        refresh_response = client.post(
+            reverse('accounts:refresh'),
+            HTTP_X_CSRFTOKEN=csrf_token
+        )
+        assert refresh_response.status_code == 200
+        
+        # 同じトークンで再度リフレッシュを試みる（ブラックリスト済み）
+        client.cookies[settings.AUTH_COOKIE_REFRESH_TOKEN] = refresh_token
+        second_refresh_response = client.post(
+            reverse('accounts:refresh'),
+            HTTP_X_CSRFTOKEN=csrf_token
+        )
+        assert second_refresh_response.status_code == 401
+        data = second_refresh_response.json()
+        assert data['status'] == 'error'
+
+@pytest.mark.django_db
+class TestUserUpdateSecurity:
+    """ユーザー更新のセキュリティテスト"""
+    
+    def test_user_update_without_csrf_returns_403(self, client, test_user):
+        """CSRFトークンなしでユーザー更新 → 403エラー"""
+        # ログイン
+        csrf_response = client.get(reverse('accounts:csrf'))
+        csrf_token = csrf_response.json()['data']['csrf_token']
+        
+        login_response = client.post(
+            reverse('accounts:login'),
+            data=json.dumps({
+                'email': test_user.email,
+                'password': 'testpass123'
+            }),
+            content_type='application/json',
+            HTTP_X_CSRFTOKEN=csrf_token
+        )
+        assert login_response.status_code == 200
+        
+        # CSRFトークンなしで更新を試みる
+        update_response = client.patch(
+            reverse('accounts:user'),
+            data=json.dumps({
+                'email': 'newemail@example.com'
+            }),
+            content_type='application/json'
+            # HTTP_X_CSRFTOKENを意図的に省略
+        )
+        assert update_response.status_code == 403
+    
+    def test_user_update_with_valid_csrf_succeeds(self, client, test_user):
+        """CSRFトークン付きでユーザー更新成功"""
+        # CSRFトークン取得
+        csrf_response = client.get(reverse('accounts:csrf'))
+        csrf_token = csrf_response.json()['data']['csrf_token']
+        
+        # ログイン
+        login_response = client.post(
+            reverse('accounts:login'),
+            data=json.dumps({
+                'email': test_user.email,
+                'password': 'testpass123'
+            }),
+            content_type='application/json',
+            HTTP_X_CSRFTOKEN=csrf_token
+        )
+        assert login_response.status_code == 200
+        
+        # アクセストークンをCookieに設定
+        access_token = login_response.cookies[settings.AUTH_COOKIE_ACCESS_TOKEN].value
+        client.cookies[settings.AUTH_COOKIE_ACCESS_TOKEN] = access_token
+        
+        # CSRFトークン付きで更新
+        update_response = client.patch(
+            reverse('accounts:user'),
+            data=json.dumps({
+                'email': 'updated@example.com'
+            }),
+            content_type='application/json',
+            HTTP_X_CSRFTOKEN=csrf_token
+        )
+        assert update_response.status_code == 200
+        data = update_response.json()
+        assert data['status'] == 'success'
+        assert data['data']['email'] == 'updated@example.com'
+        
+        # DBでも更新されていることを確認
+        test_user.refresh_from_db()
+        assert test_user.email == 'updated@example.com'
+    
+    def test_user_update_without_authentication_returns_401(self, client):
+        """認証なしでユーザー更新 → 401エラー"""
+        # CSRFトークン取得
+        csrf_response = client.get(reverse('accounts:csrf'))
+        csrf_token = csrf_response.json()['data']['csrf_token']
+        
+        # ログインせずに更新を試みる
+        update_response = client.patch(
+            reverse('accounts:user'),
+            data=json.dumps({
+                'email': 'unauthorized@example.com'
+            }),
+            content_type='application/json',
+            HTTP_X_CSRFTOKEN=csrf_token
+        )
+        assert update_response.status_code == 401
+        data = update_response.json()
+        assert data['status'] == 'error'
 
 @pytest.mark.django_db
 class TestCookieSecurityIntegration:
@@ -336,4 +469,3 @@ class TestErrorHandlingIntegration:
         data = response.json()
         assert data['status'] == 'fail'
         assert 'password' in data['data']
-

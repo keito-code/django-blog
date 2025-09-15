@@ -77,7 +77,8 @@ class LoginView(APIView):
         request=LoginSerializer,
         responses={
             200: LoginSuccessResponseSerializer,
-            401: ErrorResponseSerializer, 
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer, 
             422: FailResponseSerializer
         }
     )
@@ -142,7 +143,8 @@ class LogoutView(APIView):
     @extend_schema(
         responses={
             200: SuccessResponseSerializer,
-            401: ErrorResponseSerializer
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer
         }
     )
     def post(self, request):
@@ -189,7 +191,8 @@ class RefreshTokenView(APIView):
     @extend_schema(
         responses={
             200: SuccessResponseSerializer,
-            401: ErrorResponseSerializer
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer
         }
     )
     def post(self, request):
@@ -246,6 +249,7 @@ class RegisterView(APIView):
         request=RegisterSerializer,
         responses={
             201: RegisterSuccessResponseSerializer,
+            403: ErrorResponseSerializer,
             422: FailResponseSerializer
         }
     )
@@ -322,7 +326,8 @@ class CurrentUserView(APIView):
     @extend_schema(
         responses={
             200: PrivateUserResponseSerializer,
-            401: ErrorResponseSerializer
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer
         }
     )
     def get(self, request):
@@ -336,7 +341,8 @@ class CurrentUserView(APIView):
         responses={
             200: UpdateUserResponseSerializer,
             422: FailResponseSerializer,
-            401: ErrorResponseSerializer
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer
         }
     )
 
