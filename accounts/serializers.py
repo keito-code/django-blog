@@ -136,11 +136,6 @@ class ErrorResponseSerializer(serializers.Serializer):
     status = serializers.CharField(read_only=True, default="error")
     message = serializers.CharField(read_only=True)
 
-class AdminUserResponseSerializer(serializers.Serializer):
-    """管理者情報の取得、更新レスポンスが共通なのでまとめる"""
-    status = serializers.CharField(read_only=True, default="success")
-    data = AdminUserSerializer(read_only=True)
-
 class CSRFTokenSerializer(serializers.Serializer):
     csrf_token = serializers.CharField(read_only=True)
 
@@ -162,13 +157,19 @@ class RegisterSuccessResponseSerializer(serializers.Serializer):
     status = serializers.CharField(read_only=True, default="success")
     data = RegisterSuccessDataSerializer(read_only=True)
 
+class PrivateUserDataSerializer(serializers.Serializer):
+    user = PrivateUserSerializer(read_only=True)
+
 class PrivateUserResponseSerializer(serializers.Serializer):
     status = serializers.CharField(read_only=True, default="success")
-    data = PrivateUserSerializer(read_only=True)
+    data = PrivateUserDataSerializer(read_only=True)
+
+class UpdateUserDataSerializer(serializers.Serializer):
+    user = PrivateUserSerializer(read_only=True)
 
 class UpdateUserResponseSerializer(serializers.Serializer):
     status = serializers.CharField(read_only=True, default="success")
-    data = PrivateUserSerializer(read_only=True)
+    data = UpdateUserDataSerializer(read_only=True)
 
 class VerifyTokenSuccessDataSerializer(serializers.Serializer):
     valid = serializers.BooleanField(read_only=True, default=True)
@@ -176,6 +177,17 @@ class VerifyTokenSuccessDataSerializer(serializers.Serializer):
 class VerifyTokenSuccessResponseSerializer(serializers.Serializer):
     status = serializers.CharField(read_only=True, default="success")
     data = VerifyTokenSuccessDataSerializer(read_only=True)
+
+class AdminUserResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(read_only=True, default="success")
+    data = AdminUserSerializer(read_only=True)
+
+class AdminUserDataSerializer(serializers.Serializer):
+    user = AdminUserSerializer(read_only=True)
+
+class AdminUserResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(read_only=True, default="success")
+    data = AdminUserDataSerializer(read_only=True)
 
 
 

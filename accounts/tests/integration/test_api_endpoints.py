@@ -55,8 +55,9 @@ class TestAuthenticationFlowIntegration:
         assert response.status_code == 201
         data = response.json()
         assert data['status'] == 'success'
-        assert 'id' in data['data']
-        assert 'date_joined' in data['data']
+        assert 'user' in data['data']
+        assert 'id' in data['data']['user']
+        assert 'date_joined' in data['data']['user']
         assert User.objects.filter(email=register_data['email']).exists()
         
         # 3. ログイン（CSRFあり）
@@ -72,8 +73,9 @@ class TestAuthenticationFlowIntegration:
         assert login_response.status_code == 200
         login_data = login_response.json()
         assert login_data['status'] == 'success'
-        assert 'id' in login_data['data']
-        assert 'date_joined' in login_data['data']
+        assert 'user' in login_data['data']
+        assert 'id' in login_data['data']['user']
+        assert 'date_joined' in login_data['data']['user']
         assert settings.AUTH_COOKIE_ACCESS_TOKEN in login_response.cookies
         assert settings.AUTH_COOKIE_REFRESH_TOKEN in login_response.cookies
         
@@ -316,7 +318,8 @@ class TestUserUpdateSecurity:
         assert update_response.status_code == 200
         data = update_response.json()
         assert data['status'] == 'success'
-        assert data['data']['email'] == 'updated@example.com'
+        assert 'user' in data['data']
+        assert data['data']['user']['email'] == 'updated@example.com'
         
         # DBでも更新されていることを確認
         test_user.refresh_from_db()

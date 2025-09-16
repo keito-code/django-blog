@@ -92,7 +92,8 @@ class TestLoginView:
         assert response.status_code == 200
         data = json.loads(response.content)
         assert data['status'] == 'success'
-        assert data['data']['email'] == 'test@example.com'
+        assert 'user' in data['data']
+        assert data['data']['user']['email'] == 'test@example.com'
         assert settings.AUTH_COOKIE_ACCESS_TOKEN in response.cookies
         assert settings.AUTH_COOKIE_REFRESH_TOKEN in response.cookies
     
@@ -304,7 +305,8 @@ class TestRegisterView:
         assert response.status_code == 201
         data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'success'
-        assert data['data']['email'] == 'new@example.com'
+        assert 'user' in data['data']
+        assert data['data']['user']['email'] == 'new@example.com'
 
         # サービス層が呼ばれたことを確認
         mock_service.register.assert_called_once_with(
@@ -371,7 +373,8 @@ class TestCurrentUserView:
         assert response.status_code == 200
         data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'success'
-        assert data['data']['email'] == 'test@example.com'
+        assert 'user' in data['data']
+        assert data['data']['user']['email'] == 'test@example.com'
     
     @patch('accounts.views.PrivateUserSerializer')
     @patch('accounts.views.UpdateUserSerializer')
@@ -420,7 +423,8 @@ class TestCurrentUserView:
         assert response.status_code == 200
         data = json.loads(response.content)
         assert data['status'] == 'success'
-        assert data['data']['username'] == 'updateduser'
+        assert 'user' in data['data']
+        assert data['data']['user']['username'] == 'updateduser'
     
     def test_get_user_without_auth_returns_401(self, factory):
         """認証なしでのユーザー情報取得は401エラー"""
@@ -567,7 +571,8 @@ class TestAdminUserView:
         assert response.status_code == 200
         data = json.loads(response.content)
         assert data['status'] == 'success'
-        assert data['data']['is_active'] is False
+        assert 'user' in data['data']
+        assert data['data']['user']['is_active'] is False
         
         mock_service.update_user.assert_called_once()
         call_args = mock_service.update_user.call_args

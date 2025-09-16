@@ -106,7 +106,7 @@ class LoginView(APIView):
 
         # レスポンス作成
         response = ResponseFormatter.success(
-                data=PublicUserSerializer(user).data
+                data={'user': PublicUserSerializer(user).data}
         )
         
         # HttpOnly Cookieにトークンを設定
@@ -274,7 +274,7 @@ class RegisterView(APIView):
         tokens = register_result['tokens'] 
 
         response = ResponseFormatter.created(
-            data=PublicUserSerializer(user).data
+            data={'user': PublicUserSerializer(user).data}
         )
         
         # Cookie設定
@@ -334,7 +334,7 @@ class CurrentUserView(APIView):
         """現在のユーザー情報を取得"""
         user_serializer = self.get_user_serializer()
         serializer = user_serializer(request.user)
-        return ResponseFormatter.success(data=serializer.data)
+        return ResponseFormatter.success(data={'user': serializer.data})
     
     @extend_schema(
         request=UpdateUserSerializer,
@@ -371,7 +371,7 @@ class CurrentUserView(APIView):
         else:
             response_data = PrivateUserSerializer(updated_user).data
 
-        return ResponseFormatter.success(data=response_data)
+        return ResponseFormatter.success(data={'user': response_data})
 
 class VerifyTokenView(APIView):
     """トークン検証エンドポイント"""
