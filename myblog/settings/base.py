@@ -60,6 +60,13 @@ if DEBUG:
     AUTH_COOKIE_DOMAIN = None   # 開発: localhost用
     CSRF_COOKIE_SECURE = False 
     CSRF_COOKIE_DOMAIN = None
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:3000',
+        'http://localhost:8000',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:8000',
+    ]
+
 else:
     AUTH_COOKIE_SECURE = True   # 本番: HTTPS必須
     AUTH_COOKIE_DOMAIN = config('COOKIE_DOMAIN') 
@@ -81,6 +88,7 @@ INSTALLED_APPS = [
     'axes',
     'blog',
     'accounts',
+    'core',
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt',
@@ -340,7 +348,7 @@ REST_FRAMEWORK = {
         'djangorestframework_camel_case.parser.CamelCaseMultiPartParser',
         'djangorestframework_camel_case.parser.CamelCaseJSONParser',
     ),
-    "EXCEPTION_HANDLER": "accounts.exceptions.custom_exception_handler",
+    "EXCEPTION_HANDLER": 'core.exceptions.custom_exception_handler',
     # バージョニング設定
     'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.URLPathVersioning',
     'DEFAULT_VERSION': 'v1',

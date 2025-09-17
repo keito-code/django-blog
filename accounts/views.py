@@ -14,7 +14,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema
 from .services import AuthService, UserService
-from .responses import ResponseFormatter
+from core.responses import ResponseFormatter
 from .serializers import (
     LoginSerializer,
     LoginSuccessResponseSerializer,

@@ -1,9 +1,13 @@
-from rest_framework.exceptions import ParseError, ValidationError
 from rest_framework.views import exception_handler
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
-from rest_framework.exceptions import MethodNotAllowed, Throttled
-from accounts.responses import ResponseFormatter 
+from core.responses import ResponseFormatter 
+from rest_framework.exceptions import (
+    ValidationError,
+    ParseError, 
+    MethodNotAllowed,
+    Throttled
+)
 
 def custom_exception_handler(exc, context):
     """
@@ -16,21 +20,21 @@ def custom_exception_handler(exc, context):
 
     # JSONパースエラー -> 400
     if isinstance(exc, ParseError):
-        return ResponseFormatter.error(
-            message=str(exc.detail),
+        return ResponseFormatter.fail(
+            data={'detail': str(exc.detail)},
             status_code=400
         )
 
     # メソッド不許可 -> 405
     if isinstance(exc, MethodNotAllowed):
         return ResponseFormatter.method_not_allowed(
-            str(exc.detail) if hasattr(exc, "detail") else "Method not allowed"
+            str(exc.detail) if hasattr(exc, 'detail') else 'Method not allowed'
         )
 
     # レート制限 -> 429
     if isinstance(exc, Throttled):
         return ResponseFormatter.too_many_requests(
-            str(exc.detail) if hasattr(exc, "detail") else "Too many requests"
+            str(exc.detail) if hasattr(exc, 'detail') else 'Too many requests'
         )
 
     # 上記以外の場合、DRFのデフォルトハンドラを呼び出す
