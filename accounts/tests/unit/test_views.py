@@ -34,13 +34,16 @@ class TestCSRFTokenView:
         
         view = CSRFTokenView.as_view()
         response = view(request)
-                    
-        assert response.status_code == 200
-        data = json.loads(response.content)
-        assert data['status'] == 'success'
-        assert data['data']['csrf_token'] == 'test_csrf_token'
-        assert settings.CSRF_COOKIE_NAME in response.cookies
 
+        response.render()
+        data = json.loads(response.content.decode('utf-8'))
+
+        assert response.status_code == 200
+        assert data['status'] == 'success'
+        assert 'data' in data
+        assert 'csrfToken' in data['data']  # camelCaseに変更
+        assert data['data']['csrfToken'] == 'test_csrf_token'  # camelCaseに変更
+        assert settings.CSRF_COOKIE_NAME in response.cookies
 
 class TestLoginView:
     """LoginViewのユニットテスト"""
@@ -90,7 +93,8 @@ class TestLoginView:
         response = view(request)
         
         assert response.status_code == 200
-        data = json.loads(response.content)
+        response.render()
+        data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'success'
         assert 'user' in data['data']
         assert data['data']['user']['email'] == 'test@example.com'
@@ -118,7 +122,8 @@ class TestLoginView:
         
             
         assert response.status_code == 401
-        data = json.loads(response.content)
+        response.render()
+        data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'error'
         assert 'Authentication failed' in data['message']
     
@@ -135,7 +140,8 @@ class TestLoginView:
         
             
         assert response.status_code == 422
-        data = json.loads(response.content)
+        response.render()
+        data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'fail'
 
 
@@ -170,7 +176,8 @@ class TestLogoutView:
         
             
         assert response.status_code == 200
-        data = json.loads(response.content)
+        response.render()
+        data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'success'
         mock_service.logout.assert_called_once_with('test_refresh_token')
         
@@ -220,7 +227,8 @@ class TestRefreshTokenView:
         
             
         assert response.status_code == 200
-        data = json.loads(response.content)
+        response.render()
+        data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'success'
         assert settings.AUTH_COOKIE_ACCESS_TOKEN in response.cookies
         assert settings.AUTH_COOKIE_REFRESH_TOKEN in response.cookies
@@ -235,7 +243,8 @@ class TestRefreshTokenView:
         
             
         assert response.status_code == 401
-        data = json.loads(response.content)
+        response.render()
+        data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'error'
 
 
@@ -303,6 +312,7 @@ class TestRegisterView:
         
             
         assert response.status_code == 201
+        response.render()
         data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'success'
         assert 'user' in data['data']
@@ -328,7 +338,8 @@ class TestRegisterView:
         
             
         assert response.status_code == 422
-        data = json.loads(response.content)
+        response.render()
+        data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'fail'
 
 
@@ -371,6 +382,7 @@ class TestCurrentUserView:
         
             
         assert response.status_code == 200
+        response.render()
         data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'success'
         assert 'user' in data['data']
@@ -421,7 +433,8 @@ class TestCurrentUserView:
         
             
         assert response.status_code == 200
-        data = json.loads(response.content)
+        response.render()
+        data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'success'
         assert 'user' in data['data']
         assert data['data']['user']['username'] == 'updateduser'
@@ -458,6 +471,7 @@ class TestVerifyTokenView:
         
 
         assert response.status_code == 200
+        response.render()
         data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'success'
         assert data['data']['valid'] is True
@@ -480,6 +494,8 @@ class TestVerifyTokenView:
         view = VerifyTokenView.as_view()
         response = view(request)
 
+        response.render()
+
         # 必ずJSONが返されることを確認
         content_type = response.get('Content-Type', '')
         assert 'application/json' in content_type, \
@@ -500,7 +516,8 @@ class TestVerifyTokenView:
         
             
         assert response.status_code == 401
-        data = json.loads(response.content)
+        response.render()
+        data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'error'
 
 
@@ -567,12 +584,14 @@ class TestAdminUserView:
         
         view = CurrentUserView.as_view()
         response = view(request)
+
+        response.render()
                 
         assert response.status_code == 200
-        data = json.loads(response.content)
+        data = json.loads(response.content.decode('utf-8'))
         assert data['status'] == 'success'
         assert 'user' in data['data']
-        assert data['data']['user']['is_active'] is False
+        assert data['data']['user']['isActive'] is False
         
         mock_service.update_user.assert_called_once()
         call_args = mock_service.update_user.call_args
