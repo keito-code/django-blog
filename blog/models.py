@@ -81,12 +81,11 @@ class Post(models.Model):
          choices=STATUS_CHOICES, 
          default='draft'
     )
-    # 旧フィールド名（マイグレーション後に_legacyを付ける予定）
-    created = models.DateTimeField('作成日時', auto_now_add=True)
-    updated = models.DateTimeField('更新日時', auto_now=True)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
     
     class Meta:
-        ordering = ('-created',)
+        ordering = ('-created_at',)
         verbose_name = '記事'
         verbose_name_plural = '記事'
         
@@ -120,14 +119,6 @@ class Post(models.Model):
             self.slug = slug
         
         super().save(*args, **kwargs)
-
-    @property
-    def created_at(self):
-        return self.created
-    
-    @property
-    def updated_at(self):
-        return self.updated
 
     @property
     def is_published(self):
