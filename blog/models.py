@@ -134,7 +134,7 @@ class Comment(models.Model):
     active = models.BooleanField('有効', default=True)
     
     class Meta:
-        ordering = ('created',)
+        ordering = ('created_at',)
         verbose_name = 'コメント'
         verbose_name_plural = 'コメント'
         
