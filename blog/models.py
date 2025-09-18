@@ -129,8 +129,8 @@ class Comment(models.Model):
     name = models.CharField('名前', max_length=80)
     email = models.EmailField('メールアドレス')
     body = models.TextField('コメント')
-    created = models.DateTimeField('作成日時', auto_now_add=True)
-    updated = models.DateTimeField('更新日時', auto_now=True)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
     active = models.BooleanField('有効', default=True)
     
     class Meta:
