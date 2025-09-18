@@ -90,7 +90,7 @@ class PostViewSet(viewsets.ModelViewSet):
         
         # 既に公開済みの場合はバリデーションエラー
         if post.status == 'published':
-            raise ValidationError({'detail': 'この投稿は既に公開されています'})
+            raise ValidationError('この投稿は既に公開されています')
         
         post.status = 'published'
         post.save(update_fields=['status', 'updated_at'])
@@ -109,7 +109,7 @@ class PostViewSet(viewsets.ModelViewSet):
         
         # 既に下書きの場合はバリデーションエラー
         if post.status == 'draft':
-            raise ValidationError({'detail': 'この投稿は既に下書き状態です'})
+            raise ValidationError('この投稿は既に下書き状態です')
         
         post.status = 'draft'
         post.save(update_fields=['status', 'updated_at'])

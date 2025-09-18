@@ -1,11 +1,8 @@
-# blog/tests/unit/test_views.py
-
 import pytest
-from unittest.mock import Mock, patch
 from rest_framework.test import APIRequestFactory, force_authenticate
 from rest_framework import status
 from django.contrib.auth import get_user_model
-from blog.views import PostViewSet, CategoryViewSet
+from blog.api_views import PostViewSet, CategoryViewSet
 from blog.models import Post, Category
 
 User = get_user_model()
@@ -48,7 +45,7 @@ class TestPostViewSet:
             'category_id': category.id,
             'status': 'draft'
         }
-        request = factory.post('/api/v1/posts/', data, format='json')
+        request = factory.post('/api/v1/blog/posts/', data, format='json')
         force_authenticate(request, user=user)
         
         response = view(request)
@@ -68,7 +65,7 @@ class TestPostViewSet:
             'content': 'Content',
             'category_id': 999
         }
-        request = factory.post('/api/v1/posts/', data, format='json')
+        request = factory.post('/api/v1/blog/posts/', data, format='json')
         force_authenticate(request, user=user)
         
         response = view(request)
@@ -86,7 +83,7 @@ class TestPostViewSet:
         
         view = PostViewSet.as_view({'patch': 'partial_update'})
         data = {'title': 'Updated Title'}
-        request = factory.patch(f'/api/v1/posts/{post.slug}/', data, format='json')
+        request = factory.patch(f'/api/v1/blog/posts/{post.slug}/', data, format='json')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -105,7 +102,7 @@ class TestPostViewSet:
         
         view = PostViewSet.as_view({'patch': 'partial_update'})
         data = {'title': 'Hacked'}
-        request = factory.patch(f'/api/v1/posts/{post.slug}/', data, format='json')
+        request = factory.patch(f'/api/v1/blog/posts/{post.slug}/', data, format='json')
         force_authenticate(request, user=other_user)
         
         response = view(request, slug=post.slug)
@@ -123,7 +120,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'delete': 'destroy'})
-        request = factory.delete(f'/api/v1/posts/{post.slug}/')
+        request = factory.delete(f'/api/v1/blog/posts/{post.slug}/')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -140,7 +137,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'delete': 'destroy'})
-        request = factory.delete(f'/api/v1/posts/{post.slug}/')
+        request = factory.delete(f'/api/v1/blog/posts/{post.slug}/')
         force_authenticate(request, user=other_user)
         
         response = view(request, slug=post.slug)
@@ -158,7 +155,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'get': 'retrieve'})
-        request = factory.get(f'/api/v1/posts/{post.slug}/')
+        request = factory.get(f'/api/v1/blog/posts/{post.slug}/')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -176,12 +173,12 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'get': 'retrieve'})
-        request = factory.get(f'/api/v1/posts/{post.slug}/')
+        request = factory.get(f'/api/v1/blog/posts/{post.slug}/')
         force_authenticate(request, user=other_user)
         
         response = view(request, slug=post.slug)
         
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_404_NOT_FOUND
     
     def test_view_draft_anonymous(self, factory, user):
         """未認証ユーザーは下書き閲覧不可"""
@@ -193,7 +190,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'get': 'retrieve'})
-        request = factory.get(f'/api/v1/posts/{post.slug}/')
+        request = factory.get(f'/api/v1/blog/posts/{post.slug}/')
         # 認証なし
         
         response = view(request, slug=post.slug)
@@ -227,7 +224,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'get': 'list'})
-        request = factory.get('/api/v1/posts/')
+        request = factory.get('/api/v1/blog/posts/')
         force_authenticate(request, user=user)
         
         response = view(request)
@@ -237,6 +234,119 @@ class TestPostViewSet:
         assert 'My Draft' in titles
         assert 'My Published' in titles
         assert 'Other Draft' not in titles  # 他人の下書きは見えない
+
+    def test_publish_draft_post(self, factory, user):
+        """下書きを公開"""
+        post = Post.objects.create(
+            title='Draft to Publish',
+            content='Content',
+            author=user,
+            status='draft'
+        )
+        
+        view = PostViewSet.as_view({'post': 'publish'})
+        request = factory.post(f'/api/v1/blog/posts/{post.slug}/publish/')
+        force_authenticate(request, user=user)
+        
+        response = view(request, slug=post.slug)
+        
+        assert response.status_code == status.HTTP_200_OK
+        post.refresh_from_db()
+        assert post.status == 'published'
+    
+    def test_publish_already_published(self, factory, user):
+        """既に公開済みの投稿を公開しようとするとエラー"""
+        post = Post.objects.create(
+            title='Already Published',
+            content='Content',
+            author=user,
+            status='published'
+        )
+        
+        view = PostViewSet.as_view({'post': 'publish'})
+        request = factory.post(f'/api/v1/blog/posts/{post.slug}/publish/')
+        force_authenticate(request, user=user)
+        
+        response = view(request, slug=post.slug)
+        
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'detail' in response.data
+    
+    def test_publish_other_users_post(self, factory, user, other_user):
+        """他人の投稿は公開できない"""
+        post = Post.objects.create(
+            title='Others Draft',
+            content='Content',
+            author=other_user,
+            status='draft'
+        )
+        
+        view = PostViewSet.as_view({'post': 'publish'})
+        request = factory.post(f'/api/v1/blog/posts/{post.slug}/publish/')
+        force_authenticate(request, user=user)
+        
+        response = view(request, slug=post.slug)
+        
+        assert response.status_code == status.HTTP_404_NOT_FOUND  # QuerySetでフィルタされるため404
+    
+    def test_unpublish_published_post(self, factory, user):
+        """公開記事を下書きに戻す"""
+        post = Post.objects.create(
+            title='Published to Draft',
+            content='Content',
+            author=user,
+            status='published'
+        )
+        
+        view = PostViewSet.as_view({'post': 'unpublish'})
+        request = factory.post(f'/api/v1/blog/posts/{post.slug}/unpublish/')
+        force_authenticate(request, user=user)
+        
+        response = view(request, slug=post.slug)
+        
+        assert response.status_code == status.HTTP_200_OK
+        post.refresh_from_db()
+        assert post.status == 'draft'
+    
+    def test_unpublish_already_draft(self, factory, user):
+        """既に下書きの投稿を下書きにしようとするとエラー"""
+        post = Post.objects.create(
+            title='Already Draft',
+            content='Content',
+            author=user,
+            status='draft'
+        )
+        
+        view = PostViewSet.as_view({'post': 'unpublish'})
+        request = factory.post(f'/api/v1/blog/posts/{post.slug}/unpublish/')
+        force_authenticate(request, user=user)
+        
+        response = view(request, slug=post.slug)
+        
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'detail' in response.data
+    
+    def test_my_posts_action(self, factory, user):
+        """my_postsアクションで自分の投稿のみ取得"""
+        # 自分の投稿
+        Post.objects.create(title='My Post 1', content='Content', author=user, status='published')
+        Post.objects.create(title='My Post 2', content='Content', author=user, status='draft')
+        
+        # 他人の投稿
+        other = User.objects.create_user(username='other3', email='other3@example.com')
+        Post.objects.create(title='Other Post', content='Content', author=other, status='published')
+        
+        view = PostViewSet.as_view({'get': 'my_posts'})
+        request = factory.get('/api/v1/blog/posts/my_posts/')
+        force_authenticate(request, user=user)
+        
+        response = view(request)
+        
+        assert response.status_code == status.HTTP_200_OK
+        titles = [post['title'] for post in response.data['results']]
+        assert 'My Post 1' in titles
+        assert 'My Post 2' in titles
+        assert 'Other Post' not in titles
 
 
 @pytest.mark.django_db
@@ -267,7 +377,7 @@ class TestCategoryViewSet:
         """管理者はカテゴリー作成可能"""
         view = CategoryViewSet.as_view({'post': 'create'})
         data = {'name': 'New Category'}
-        request = factory.post('/api/v1/categories/', data, format='json')
+        request = factory.post('/api/v1/blog/categories/', data, format='json')
         force_authenticate(request, user=admin_user)
         
         response = view(request)
@@ -281,7 +391,7 @@ class TestCategoryViewSet:
         """一般ユーザーはカテゴリー作成不可"""
         view = CategoryViewSet.as_view({'post': 'create'})
         data = {'name': 'Forbidden Category'}
-        request = factory.post('/api/v1/categories/', data, format='json')
+        request = factory.post('/api/v1/blog/categories/', data, format='json')
         force_authenticate(request, user=normal_user)
         
         response = view(request)
@@ -295,7 +405,7 @@ class TestCategoryViewSet:
         
         view = CategoryViewSet.as_view({'patch': 'partial_update'})
         data = {'name': 'New Name'}
-        request = factory.patch(f'/api/v1/categories/{category.slug}/', data, format='json')
+        request = factory.patch(f'/api/v1/blog/categories/{category.slug}/', data, format='json')
         force_authenticate(request, user=admin_user)
         
         response = view(request, slug=category.slug)
@@ -311,10 +421,65 @@ class TestCategoryViewSet:
         category = Category.objects.create(name='To Delete')
         
         view = CategoryViewSet.as_view({'delete': 'destroy'})
-        request = factory.delete(f'/api/v1/categories/{category.slug}/')
+        request = factory.delete(f'/api/v1/blog/categories/{category.slug}/')
         force_authenticate(request, user=admin_user)
         
         response = view(request, slug=category.slug)
         
         assert response.status_code == status.HTTP_204_NO_CONTENT
         assert not Category.objects.filter(id=category.id).exists()
+
+    def test_list_categories_anonymous(self, factory):
+        """未認証ユーザーでもカテゴリー一覧は閲覧可能"""
+        Category.objects.create(name='Tech')
+        Category.objects.create(name='Life')
+        
+        view = CategoryViewSet.as_view({'get': 'list'})
+        request = factory.get('/api/v1/blog/categories/')
+        # 認証なし
+        
+        response = view(request)
+        
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data['results']) == 2
+    
+    def test_category_posts_action(self, factory, normal_user):
+        """カテゴリーに属する投稿一覧を取得"""
+        category = Category.objects.create(name='Tech')
+        user = User.objects.create_user(username='author', email='author@example.com')
+        
+        # カテゴリーに属する公開記事
+        Post.objects.create(
+            title='Tech Post 1',
+            content='Content',
+            author=user,
+            category=category,
+            status='published'
+        )
+        Post.objects.create(
+            title='Tech Post 2',
+            content='Content',
+            author=user,
+            category=category,
+            status='published'
+        )
+        # カテゴリーに属する下書き（表示されないはず）
+        Post.objects.create(
+            title='Tech Draft',
+            content='Content',
+            author=user,
+            category=category,
+            status='draft'
+        )
+        
+        view = CategoryViewSet.as_view({'get': 'posts'})
+        request = factory.get(f'/api/v1/blog/categories/{category.slug}/posts/')
+        force_authenticate(request, user=normal_user)
+        
+        response = view(request, slug=category.slug)
+        
+        assert response.status_code == status.HTTP_200_OK
+        titles = [post['title'] for post in response.data['results']]
+        assert 'Tech Post 1' in titles
+        assert 'Tech Post 2' in titles
+        assert 'Tech Draft' not in titles  # 下書きは表示されない
