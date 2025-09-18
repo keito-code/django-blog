@@ -1,94 +1,74 @@
-from rest_framework import viewsets, filters, status
-from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
+from rest_framework import viewsets, filters
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from rest_framework.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
-from .pagination import CustomPageNumberPagination
-from django.db.models import Q
-from .models import Post
-from .serializers import PostListSerializer, PostDetailSerializer
-from .permissions import IsAuthorOrReadOnly
+from django.db.models import Q, Count
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.utils import timezone
+
+from .models import Post, Category
+from .serializers import (
+    PostListSerializer,
+    PostDetailSerializer,
+    PostCreateSerializer,
+    PostUpdateSerializer,
+    CategorySerializer
+)
+from .permissions import IsAuthorOrReadOnly
+from .pagination import CustomPageNumberPagination
+
 
 class PostViewSet(viewsets.ModelViewSet):
     """
     ブログ記事のCRUD操作を提供するAPI ViewSet
     
-    このAPIでは以下の操作が可能です：
-    - **リスト取得** (GET /api/v1/blog/posts/): 記事一覧を取得
-    - **詳細取得** (GET /api/v1/blog/posts/{id}/): 特定の記事を取得
-    - **作成** (POST /api/v1/blog/posts/): 新規記事を作成（要認証）
-    - **更新** (PUT/PATCH /api/v1/blog/posts/{id}/): 記事を更新（要認証、作者のみ）
-    - **削除** (DELETE /api/v1/blog/posts/{id}/): 記事を削除（要認証、作者のみ）
-    
-    ## 認証とアクセス権限
-    - 未認証ユーザー: 公開記事（published）の閲覧のみ可能
-    - 認証済みユーザー: 自分の記事は全て（draft含む）アクセス可能、作成・編集・削除可能
-    
-    ## フィルタリング
-    - `status`: 記事のステータス（published/draft）でフィルタ
-    - `author`: 作者のIDでフィルタ
-    
-    ## 検索
-    - `search`: タイトルと本文を対象にキーワード検索
-    
-    ## ソート
-    - `ordering`: created, updated, publish フィールドでソート可能
-    - デフォルトは作成日時の降順（-created）
-    
-    ## ページネーション
-    - デフォルト: 10件/ページ
-    - `pageSize`: 最大100件までページサイズ変更可能
+    エンドポイント:
+    - GET /api/v1/blog/posts/ - 記事一覧
+    - POST /api/v1/blog/posts/ - 記事作成（要認証）
+    - GET /api/v1/blog/posts/{slug}/ - 記事詳細
+    - PUT/PATCH /api/v1/blog/posts/{slug}/ - 記事更新（作者のみ）
+    - DELETE /api/v1/blog/posts/{slug}/ - 記事削除（作者のみ）
     """
-
-
-    serializer_class = PostListSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly]
+    
+    permission_classes = [IsAuthorOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'author']
+    filterset_fields = ['status', 'author', 'category']
     search_fields = ['title', 'content']
-    ordering_fields = ['created', 'updated', 'publish']
-    ordering = ['-created']
+    ordering_fields = ['created_at', 'updated_at']
+    ordering = ['-created_at']
     pagination_class = CustomPageNumberPagination
     lookup_field = 'slug'
     
     def get_queryset(self):
-        """
-        クエリセットをユーザーの認証状態に応じて制御
-        - 未認証: 公開記事のみ
-        - 認証済み: 公開記事 + 自分の全ての記事
-        """
+        """認証状態に応じたクエリセット"""
+        queryset = Post.objects.select_related('author', 'category')
+        
         if self.request.user.is_authenticated:
-            # 認証済みユーザーは公開記事 + 自分の全ての記事を見ることができる
-            return Post.objects.filter(
+            return queryset.filter(
                 Q(status='published') | Q(author=self.request.user)
-            ).distinct().order_by('-created')
+            ).distinct()
         else:
-            # 未認証ユーザーは公開記事のみ
-            return Post.objects.filter(status='published').order_by('-created')
+            return queryset.filter(status='published')
     
     def get_serializer_class(self):
-        """
-        アクションに応じてシリアライザーを選択
-        """
-        if self.action in ['retrieve', 'create', 'update', 'partial_update']:
-            # 詳細取得、作成、更新時はDetailSerializerを使用
+        """アクションに応じたシリアライザー選択"""
+        if self.action == 'list':
+            return PostListSerializer
+        elif self.action == 'retrieve':
             return PostDetailSerializer
-        return self.serializer_class
+        elif self.action == 'create':
+            return PostCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return PostUpdateSerializer
+        return PostListSerializer
     
     def perform_create(self, serializer):
-        """
-        記事作成時に作成者を自動設定
-        """
+        """作成時に作者を自動設定"""
         serializer.save(author=self.request.user)
-
+    
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def my_posts(self, request):
-        """
-        現在のユーザーの投稿一覧を取得
-        
-        認証が必要です。
-        """
+        """現在のユーザーの投稿一覧"""
         posts = self.get_queryset().filter(author=request.user)
         page = self.paginate_queryset(posts)
         if page is not None:
@@ -97,91 +77,84 @@ class PostViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(posts, many=True)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
-    def drafts(self, request):
-        """
-        現在のユーザーの下書き一覧を取得
-        
-        認証が必要です。
-        """
-        drafts = self.get_queryset().filter(author=request.user, status='draft')
-        page = self.paginate_queryset(drafts)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(drafts, many=True)
-        return Response(serializer.data)
-    
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAuthorOrReadOnly])
     def publish(self, request, slug=None):
         """
-        下書きを公開状態に変更
+        下書きを公開
         
-        投稿の作者のみが実行可能です。
+        権限チェックはIsAuthorOrReadOnlyが処理
+        エラーはDRF標準例外をraiseし、custom_exception_handlerがJSend形式に変換
+        成功時はレンダラーが自動的にJSend形式にラップ
         """
-        # 投稿取得
         post = self.get_object()
-
-        # 権限チェック
-        if post.author != request.user:
-            return Response(
-                {'detail': 'この投稿を公開する権限がありません。'},
-                status=status.HTTP_403_FORBIDDEN
-            )
         
-        # ステータスチェック
+        # 既に公開済みの場合はバリデーションエラー
         if post.status == 'published':
-            return Response(
-                {'detail': 'この投稿は既に公開されています。'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError({'detail': 'この投稿は既に公開されています'})
         
-        # 公開処理
         post.status = 'published'
+        post.save(update_fields=['status', 'updated_at'])
         
-        # 保存
-        post.save(update_fields=['status', 'updated'])
-
-        # レスポンス
-        serializer = self.get_serializer(post)
-        return Response(
-            {
-                'message': '投稿を公開しました。',
-                'post': serializer.data
-            },
-            status=status.HTTP_200_OK
-        )
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+        serializer = PostDetailSerializer(post)
+        return Response(serializer.data)  # レンダラーが自動的にJSend形式に
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAuthorOrReadOnly])
     def unpublish(self, request, slug=None):
         """
-        公開投稿を下書きに戻す
+        公開記事を下書きに戻す
         
-        投稿の作者のみが実行可能です。
+        権限チェックはIsAuthorOrReadOnlyが処理
         """
         post = self.get_object()
         
-        if post.author != request.user:
-            return Response(
-                {'detail': 'この投稿を非公開にする権限がありません。'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
+        # 既に下書きの場合はバリデーションエラー
         if post.status == 'draft':
-            return Response(
-                {'detail': 'この投稿は既に下書き状態です。'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError({'detail': 'この投稿は既に下書き状態です'})
         
         post.status = 'draft'
-        post.save(update_fields=['status', 'updated'])
+        post.save(update_fields=['status', 'updated_at'])
         
-        serializer = self.get_serializer(post)
-        return Response(
-            {
-                'message': '投稿を下書きに戻しました。',
-                'post': serializer.data
-            },
-            status=status.HTTP_200_OK
-        )
+        serializer = PostDetailSerializer(post)
+        return Response(serializer.data)  # レンダラーが自動的にJSend形式に
 
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    """
+    カテゴリーのCRUD操作を提供するAPI ViewSet
+    
+    エンドポイント:
+    - GET /api/v1/blog/categories/ - カテゴリー一覧（誰でも）
+    - POST /api/v1/blog/categories/ - カテゴリー作成（管理者のみ）
+    - GET /api/v1/blog/categories/{slug}/ - カテゴリー詳細（誰でも）
+    - PUT/PATCH /api/v1/blog/categories/{slug}/ - カテゴリー更新（管理者のみ）
+    - DELETE /api/v1/blog/categories/{slug}/ - カテゴリー削除（管理者のみ）
+    """
+    
+    queryset = Category.objects.annotate(
+        post_count=Count('posts', filter=Q(posts__status='published'))
+    )
+    serializer_class = CategorySerializer
+    lookup_field = 'slug'
+    
+    def get_permissions(self):
+        """メソッドに応じた権限設定"""
+        if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
+            return [AllowAny()]
+        return [IsAdminUser()]
+    
+    @action(detail=True, methods=['get'])
+    def posts(self, request, slug=None):
+        """カテゴリーに属する公開記事一覧"""
+        category = self.get_object()
+        posts = Post.objects.filter(
+            category=category,
+            status='published'
+        ).select_related('author')
+        
+        page = self.paginate_queryset(posts)
+        if page is not None:
+            serializer = PostListSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = PostListSerializer(posts, many=True)
+        return Response(serializer.data)
