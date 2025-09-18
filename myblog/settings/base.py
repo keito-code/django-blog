@@ -340,7 +340,7 @@ REST_FRAMEWORK = {
         'accounts.authentication.CookieJWTAuthentication',
     ],
     'DEFAULT_RENDERER_CLASSES': (
-        'djangorestframework_camel_case.render.CamelCaseJSONRenderer',
+        'core.renderers.JSendCamelCaseRenderer',  # 変更: 統合レンダラー
         'djangorestframework_camel_case.render.CamelCaseBrowsableAPIRenderer',
     ),
     'DEFAULT_PARSER_CLASSES': (
