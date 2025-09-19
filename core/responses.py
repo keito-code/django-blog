@@ -78,11 +78,27 @@ class ResponseFormatter:
         )
     
     @staticmethod
-    def validation_error(errors: Dict[str, Any]) -> Response:
+    def validation_error(data: Dict[str, Any]) -> Response:
         """バリデーションエラー（422 Unprocessable Entity）"""
         return ResponseFormatter.fail(
-            data=errors, 
+            data=data, 
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
+
+    @staticmethod
+    def method_not_allowed(data: Dict[str, Any]) -> Response:
+        """メソッド不許可（405 Method Not Allowed）"""
+        return ResponseFormatter.fail(
+            data=data,
+            status_code=status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+
+    @staticmethod
+    def too_many_requests(data: Dict[str, Any]) -> Response:
+        """リクエスト過多（429 Too Many Requests）"""
+        return ResponseFormatter.fail(
+            data=data,
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS
         )
     
     @staticmethod
@@ -110,24 +126,6 @@ class ResponseFormatter:
             message=message,
             code="NOT_FOUND",
             status_code=status.HTTP_404_NOT_FOUND
-        )
-
-    @staticmethod
-    def method_not_allowed(message: str = "Method not allowed") -> Response:
-        """メソッド不許可（405 Method Not Allowed）"""
-        return ResponseFormatter.error(
-            message=message,
-            code="METHOD_NOT_ALLOWED",
-            status_code=status.HTTP_405_METHOD_NOT_ALLOWED
-        )
-    
-    @staticmethod
-    def too_many_requests(message: str = "Too many requests") -> Response:
-        """リクエスト過多（429 Too Many Requests）"""
-        return ResponseFormatter.error(
-            message=message,
-            code="TOO_MANY_REQUESTS",
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS
         )
 
     @staticmethod
