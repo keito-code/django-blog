@@ -432,15 +432,16 @@ class TestErrorHandlingIntegration:
         assert data['status'] == 'fail'
 
     def test_method_not_allowed(self, client):
-        """許可されていないHTTPメソッドは405エラー"""
+        """許可されていないHTTPメソッドは405エラー(fail)"""
         # GETでログインエンドポイントにアクセス（CSRFチェック不要）
         response = client.get(reverse('accounts:login'))
         assert response.status_code == 405 
 
         # exceptions.pyによりJSend形式で返される
         data = response.json()
-        assert data['status'] == 'error'
-        assert 'Method' in data['message'] or 'method' in data['message']
+        assert data['status'] == 'fail'
+        assert 'detail' in data['data']
+        assert 'Method' in data['data']['detail'] or 'method' in data['data']['detail']
         
         # CSRFトークン付きでDELETEを送ると405が返る
         csrf_response = client.get(reverse('accounts:csrf'))
@@ -452,7 +453,8 @@ class TestErrorHandlingIntegration:
         )
         assert response.status_code == 405
         data = response.json()
-        assert data['status'] == 'error'
+        assert data['status'] == 'fail'
+        assert 'detail' in data['data']
     
     def test_missing_required_fields(self, client):
         """必須フィールド不足は422エラーバリデーションエラー）"""
