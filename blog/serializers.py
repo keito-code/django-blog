@@ -45,51 +45,42 @@ class PostDetailSerializer(serializers.ModelSerializer):
     def get_author_name(self, obj):
         return f"Author{obj.author.id}"
 
-class PostCreateSerializer(serializers.Serializer):
+class PostCreateSerializer(serializers.ModelSerializer):
     """記事作成用（認証必要）"""
-    title = serializers.CharField(max_length=200)
-    content = serializers.CharField()
-    category_id = serializers.IntegerField(required=False, allow_null=True)
-    status = serializers.ChoiceField(
-        choices=['draft', 'published'],
-        default='draft'
-    )
-
+    class Meta:
+        model = Post
+        fields = ['title', 'content', 'status']
+        
     def validate_title(self, value):
         if len(value) < 3:
-            raise serializers.ValidationError(
-                "タイトルは3文字以上必要です"
-            )
+            raise serializers.ValidationError("タイトルは3文字以上必要です")
         return value
 
     def validate(self, data):
         if data.get('title') == data.get('content'):
-            raise serializers.ValidationError(
-                "タイトルと本文に同じ内容は設定できません"
-            )
+            raise serializers.ValidationError("タイトルと本文に同じ内容は設定できません")
         return data
 
-class PostUpdateSerializer(serializers.Serializer):
+class PostUpdateSerializer(serializers.ModelSerializer):
     """記事更新用（認証必要）"""
-    title = serializers.CharField(max_length=200, required=False)
-    content = serializers.CharField(required=False)
-    category_id = serializers.IntegerField(required=False, allow_null=True)
-    status = serializers.ChoiceField(
-        choices=['draft', 'published'],
-        required=False
-    )
+    class Meta:
+        model = Post
+        fields = ['title', 'content', 'status']
+        extra_kwargs = {
+            'title': {'required': False},
+            'content': {'required': False},
+            'status': {'required': False},
+        }
 
     def validate_title(self, value):
         if value and len(value) < 3:
-            raise serializers.ValidationError(
-                "タイトルは3文字以上必要です"
-            )
+            raise serializers.ValidationError("タイトルは3文字以上必要です")
         return value
     
     def validate(self, data):
         if 'title' in data and 'content' in data:
             if data['title'] == data['content']:
-                raise serializers.ValidationError(
-                    "タイトルと本文に同じ内容は設定できません"
-                )
+                raise serializers.ValidationError("タイトルと本文に同じ内容は設定できません")
         return data
+
+

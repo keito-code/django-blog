@@ -31,18 +31,13 @@ class TestPostViewSet:
             email='other@example.com',
             password='testpass'
         )
-    
-    @pytest.fixture
-    def category(self):
-        return Category.objects.create(name='Tech')
-    
-    def test_create_post_success(self, factory, user, category):
+        
+    def test_create_post_success(self, factory, user):
         """正常な投稿作成"""
         view = PostViewSet.as_view({'post': 'create'})
         data = {
             'title': 'Test Title',
             'content': 'Test Content',
-            'category_id': category.id,
             'status': 'draft'
         }
         request = factory.post('/api/v1/blog/posts/', data, format='json')
@@ -55,24 +50,8 @@ class TestPostViewSet:
         post = Post.objects.get(title='Test Title')
         assert post.author == user
         assert post.slug  # 自動生成されている
-        assert post.category == category
-    
-    def test_create_post_invalid_category(self, factory, user):
-        """無効なカテゴリーIDでエラー"""
-        view = PostViewSet.as_view({'post': 'create'})
-        data = {
-            'title': 'Test',
-            'content': 'Content',
-            'category_id': 999
-        }
-        request = factory.post('/api/v1/blog/posts/', data, format='json')
-        force_authenticate(request, user=user)
+        assert post.category is None
         
-        response = view(request)
-        
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert 'category_id' in response.data
-    
     def test_update_post_by_author(self, factory, user):
         """作者による投稿更新"""
         post = Post.objects.create(
@@ -93,11 +72,12 @@ class TestPostViewSet:
         assert post.title == 'Updated Title'
     
     def test_update_post_by_other_user(self, factory, user, other_user):
-        """他人の投稿は更新不可"""
+        """他人の投稿は更新不可(404)"""
         post = Post.objects.create(
             title='Original',
             content='Original Content',
-            author=user
+            author=user,
+            status='draft'
         )
         
         view = PostViewSet.as_view({'patch': 'partial_update'})
@@ -106,11 +86,12 @@ class TestPostViewSet:
         force_authenticate(request, user=other_user)
         
         response = view(request, slug=post.slug)
-        
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+         # 他人の下書きはQuerySetでフィルタされるため404
+        assert response.status_code == status.HTTP_404_NOT_FOUND
         post.refresh_from_db()
-        assert post.title == 'Original'  # 変更されていない
-    
+        assert post.title == 'Original'
+        
     def test_delete_post_by_author(self, factory, user):
         """作者による投稿削除"""
         post = Post.objects.create(
@@ -129,11 +110,52 @@ class TestPostViewSet:
         assert not Post.objects.filter(id=post.id).exists()
     
     def test_delete_post_by_other_user(self, factory, user, other_user):
-        """他人の投稿は削除不可"""
+        """他人の下書きは削除不可(404)"""
         post = Post.objects.create(
             title='Protected',
             content='Content',
-            author=user
+            author=user,
+            status='draft'
+        )
+        
+        view = PostViewSet.as_view({'delete': 'destroy'})
+        request = factory.delete(f'/api/v1/blog/posts/{post.slug}/')
+        force_authenticate(request, user=other_user)
+        
+        response = view(request, slug=post.slug)
+
+        # 他人の下書きはQuerySetでフィルタされるため404
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert Post.objects.filter(id=post.id).exists()
+
+    def test_update_published_post_by_other_user(self, factory, user, other_user):
+        """他人の公開記事も更新不可（403）"""
+        post = Post.objects.create(
+            title='Published Post',
+            content='Content',
+            author=user,
+            status='published'  # 公開記事
+        )
+        
+        view = PostViewSet.as_view({'patch': 'partial_update'})
+        data = {'title': 'Hacked'}
+        request = factory.patch(f'/api/v1/blog/posts/{post.slug}/', data, format='json')
+        force_authenticate(request, user=other_user)
+        
+        response = view(request, slug=post.slug)
+        
+        # 公開記事は見えるが、IsAuthorOrReadOnlyで403
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        post.refresh_from_db()
+        assert post.title == 'Published Post'
+    
+    def test_delete_published_post_by_other_user(self, factory, user, other_user):
+        """他人の公開記事も削除不可（403）"""
+        post = Post.objects.create(
+            title='Published Protected',
+            content='Content',
+            author=user,
+            status='published'  # 公開記事
         )
         
         view = PostViewSet.as_view({'delete': 'destroy'})
@@ -142,9 +164,10 @@ class TestPostViewSet:
         
         response = view(request, slug=post.slug)
         
+        # 公開記事は見えるが、IsAuthorOrReadOnlyで403
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert Post.objects.filter(id=post.id).exists()
-    
+        
     def test_view_draft_by_author(self, factory, user):
         """下書きは作者のみ閲覧可能"""
         post = Post.objects.create(
@@ -255,7 +278,7 @@ class TestPostViewSet:
         assert post.status == 'published'
     
     def test_publish_already_published(self, factory, user):
-        """既に公開済みの投稿を公開しようとするとエラー"""
+        """既に公開済みの投稿を公開しようとするとエラー(422)"""
         post = Post.objects.create(
             title='Already Published',
             content='Content',
@@ -268,10 +291,12 @@ class TestPostViewSet:
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
+
+        # ValidationErrorは422で返される
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.data['status'] == 'fail'
+        assert 'data' in response.data
         
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert 'detail' in response.data
-    
     def test_publish_other_users_post(self, factory, user, other_user):
         """他人の投稿は公開できない"""
         post = Post.objects.create(
@@ -309,7 +334,7 @@ class TestPostViewSet:
         assert post.status == 'draft'
     
     def test_unpublish_already_draft(self, factory, user):
-        """既に下書きの投稿を下書きにしようとするとエラー"""
+        """既に下書きの投稿を下書きにしようとするとエラー(422)"""
         post = Post.objects.create(
             title='Already Draft',
             content='Content',
@@ -322,10 +347,12 @@ class TestPostViewSet:
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
+
+        # ValidationErrorは422で返される
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.data['status'] == 'fail'
+        assert 'data' in response.data
         
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert 'detail' in response.data
-    
     def test_my_posts_action(self, factory, user):
         """my_postsアクションで自分の投稿のみ取得"""
         # 自分の投稿
