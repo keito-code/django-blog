@@ -16,8 +16,8 @@ urlpatterns = [
 
     path('v1/auth/', include(('accounts.urls_auth', 'auth'), namespace='auth-api')),
     path('v1/users/', include(('accounts.urls_users', 'users'), namespace='users-api')),
-    path('v1/posts/', include(('blog.api.v1.urls_posts', 'posts'), namespace='posts-api')),
-    path('v1/categories/', include(('blog.api.v1.urls_categories', 'categories'), namespace='categories-api')),
+    path('v1/posts/', include(('blog.urls_posts', 'posts'), namespace='posts-api')),
+    path('v1/categories/', include(('blog.urls_categories', 'categories'), namespace='categories-api')),
 
     path('v1/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('v1/schema/swagger-ui/', RelaxedSpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

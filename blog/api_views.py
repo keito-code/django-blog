@@ -23,11 +23,14 @@ class PostViewSet(viewsets.ModelViewSet):
     ブログ記事のCRUD操作を提供するAPI ViewSet
     
     エンドポイント:
-    - GET /api/v1/blog/posts/ - 記事一覧
-    - POST /api/v1/blog/posts/ - 記事作成（要認証）
-    - GET /api/v1/blog/posts/{slug}/ - 記事詳細
-    - PUT/PATCH /api/v1/blog/posts/{slug}/ - 記事更新（作者のみ）
-    - DELETE /api/v1/blog/posts/{slug}/ - 記事削除（作者のみ）
+    - GET /v1/posts/ - 記事一覧
+    - POST /v1/posts/ - 記事作成（要認証）
+    - GET /v1/posts/{slug}/ - 記事詳細
+    - PUT/PATCH /v1/posts/{slug}/ - 記事更新（作者のみ）
+    - DELETE /v1/posts/{slug}/ - 記事削除（作者のみ）
+    - GET /v1/posts/my_posts/ - 自分の投稿一覧（要認証）
+    - POST /v1/posts/{slug}/publish/ - 投稿を公開（作者のみ）
+    - POST /v1/posts/{slug}/unpublish/ - 投稿を下書きに戻す（作者のみ）
     """
     
     permission_classes = [IsAuthorOrReadOnly]
@@ -123,11 +126,12 @@ class CategoryViewSet(viewsets.ModelViewSet):
     カテゴリーのCRUD操作を提供するAPI ViewSet
     
     エンドポイント:
-    - GET /api/v1/blog/categories/ - カテゴリー一覧（誰でも）
-    - POST /api/v1/blog/categories/ - カテゴリー作成（管理者のみ）
-    - GET /api/v1/blog/categories/{slug}/ - カテゴリー詳細（誰でも）
-    - PUT/PATCH /api/v1/blog/categories/{slug}/ - カテゴリー更新（管理者のみ）
-    - DELETE /api/v1/blog/categories/{slug}/ - カテゴリー削除（管理者のみ）
+    - GET /v1/categories/ - カテゴリー一覧（誰でも）
+    - POST /v1/categories/ - カテゴリー作成（管理者のみ）
+    - GET /v1/categories/{slug}/ - カテゴリー詳細（誰でも）
+    - PUT/PATCH /v1/categories/{slug}/ - カテゴリー更新（管理者のみ）
+    - DELETE /v1/categories/{slug}/ - カテゴリー削除（管理者のみ）
+    - GET /v1/categories/{slug}/posts/ - カテゴリーの投稿一覧（誰でも）
     """
     
     queryset = Category.objects.annotate(
