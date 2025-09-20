@@ -8,18 +8,20 @@ from myblog.views import RelaxedSpectacularSwaggerView, RelaxedSpectacularRedocV
 
 urlpatterns = [
     path('', HomeView.as_view(), name='home'),
-    path(f'{settings.ADMIN_URL}', admin.site.urls), # 動的な管理画面URL
+    path(f'{settings.ADMIN_URL}', admin.site.urls), 
+
+    # Web用（後で削除予定）
     path('accounts/', include(('accounts.urls_web', 'accounts'), namespace='accounts-web')),
-    # ブログのWeb画面は /blog/ 以下に配置
     path('blog/', include(('blog.urls', 'blog-web'), namespace='blog-web')),
-    # ブログのAPIは /api/v1/blog/ 以下に配置
-    path('api/v1/blog/', include(('blog.api.v1.urls', 'blog-api'), namespace='blog-api')),
-    # 認証APIは /api/v1/auth/ 以下に配置
-    path('api/v1/auth/', include(('accounts.urls', 'accounts'), namespace='accounts')),
-    # APIドキュメント
-    path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/v1/schema/swagger-ui/', RelaxedSpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('api/v1/schema/redoc/', RelaxedSpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+
+    path('v1/auth/', include(('accounts.urls_auth', 'auth'), namespace='auth-api')),
+    path('v1/users/', include(('accounts.urls_users', 'users'), namespace='users-api')),
+    path('v1/posts/', include(('blog.api.v1.urls_posts', 'posts'), namespace='posts-api')),
+    path('v1/categories/', include(('blog.api.v1.urls_categories', 'categories'), namespace='categories-api')),
+
+    path('v1/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('v1/schema/swagger-ui/', RelaxedSpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('v1/schema/redoc/', RelaxedSpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 ]
 
 if settings.DEBUG:
