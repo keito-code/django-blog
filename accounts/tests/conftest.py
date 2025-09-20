@@ -36,7 +36,7 @@ def authenticated_client(client, test_user):
 @pytest.fixture
 def csrf_token(client):
     """CSRFトークン取得（必須）"""
-    response = client.get(reverse('accounts:csrf'))
+    response = client.get(reverse('auth-api:csrf'))
     assert response.status_code == 200, (
         "CSRF endpoint MUST be implemented for multi-user blog system"
     )

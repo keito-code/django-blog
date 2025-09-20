@@ -30,7 +30,7 @@ class TestCSRFTokenView:
     def test_get_csrf_token_success(self, mock_get_token, factory):
         """CSRFトークン取得成功"""
         mock_get_token.return_value = 'test_csrf_token'
-        request = factory.get('/api/v1/auth/csrf/')
+        request = factory.get('/v1/auth/csrf/')
         
         view = CSRFTokenView.as_view()
         response = view(request)
@@ -84,7 +84,7 @@ class TestLoginView:
         mock_serializer_class.return_value = mock_serializer
         
         request = factory.post(
-            '/api/v1/auth/login/',
+            '/v1/auth/login/',
             data={'email': 'test@example.com', 'password': 'testpass'},
             format='json'
         )
@@ -112,7 +112,7 @@ class TestLoginView:
         }
         
         request = factory.post(
-            '/api/v1/auth/login/',
+            '/v1/auth/login/',
             data={'email': 'test@example.com', 'password': 'wrongpass'},
             format='json'
         )
@@ -130,7 +130,7 @@ class TestLoginView:
     def test_login_missing_fields(self, factory):
         """必須フィールド不足時は422エラー"""
         request = factory.post(
-            '/api/v1/auth/login/',
+            '/v1/auth/login/',
             data={'email': 'test@example.com'},
             format='json'
         )
@@ -167,7 +167,7 @@ class TestLogoutView:
         mock_auth_service_class.return_value = mock_service
         mock_service.logout.return_value = {'ok': True}  # 辞書形式
         
-        request = factory.post('/api/v1/auth/logout/')
+        request = factory.post('/v1/auth/logout/')
         request.COOKIES = {settings.AUTH_COOKIE_REFRESH_TOKEN: 'test_refresh_token'}
         force_authenticate(request, user=user)
 
@@ -191,7 +191,7 @@ class TestLogoutView:
     
     def test_logout_without_auth_returns_401(self, factory):
         """認証なしでのログアウトは401エラー"""
-        request = factory.post('/api/v1/auth/logout/')
+        request = factory.post('/v1/auth/logout/')
         
         view = LogoutView.as_view()
         response = view(request)
@@ -219,7 +219,7 @@ class TestRefreshTokenView:
             }
         }
         
-        request = factory.post('/api/v1/auth/refresh/')
+        request = factory.post('/v1/auth/refresh/')
         request.COOKIES = {settings.AUTH_COOKIE_REFRESH_TOKEN: 'old_refresh_token'}
         
         view = RefreshTokenView.as_view()
@@ -235,7 +235,7 @@ class TestRefreshTokenView:
     
     def test_refresh_without_token_returns_401(self, factory):
         """リフレッシュトークンなしは401エラー"""
-        request = factory.post('/api/v1/auth/refresh/')
+        request = factory.post('/v1/auth/refresh/')
         request.COOKIES = {}
         
         view = RefreshTokenView.as_view()
@@ -297,7 +297,7 @@ class TestRegisterView:
         }      
 
         request = factory.post(
-            '/api/v1/auth/register/',
+            '/v1/auth/register/',
             data={
                 'email': 'new@example.com',
                 'username': 'newuser',
@@ -328,7 +328,7 @@ class TestRegisterView:
     def test_returns_422_for_invalid_data(self, factory):
         """無効なデータで422を返す"""
         request = factory.post(
-            '/api/v1/auth/register/',
+            '/v1/auth/register/',
             data={'email': 'invalid'},
             format='json'
         )
@@ -374,7 +374,7 @@ class TestCurrentUserView:
         }
         mock_serializer_class.return_value = mock_serializer
         
-        request = factory.get('/api/v1/auth/user/')
+        request = factory.get('/v1/users/me/')
         force_authenticate(request, user=user)
         
         view = CurrentUserView.as_view()
@@ -422,7 +422,7 @@ class TestCurrentUserView:
         mock_private_serializer_class.return_value = mock_private_serializer
         
         request = factory.patch(
-            '/api/v1/auth/user/',
+            '/v1/users/me/',
             data={'username': 'updateduser'},
             format='json'
         )
@@ -441,7 +441,7 @@ class TestCurrentUserView:
     
     def test_get_user_without_auth_returns_401(self, factory):
         """認証なしでのユーザー情報取得は401エラー"""
-        request = factory.get('/api/v1/auth/user/')
+        request = factory.get('/v1/users/me/')
         
         view = CurrentUserView.as_view()
         response = view(request)
@@ -463,7 +463,7 @@ class TestVerifyTokenView:
         mock_auth_service_class.return_value = mock_service
         mock_service.verify_token.return_value = {'ok': True}
   
-        request = factory.get('/api/v1/auth/verify/')
+        request = factory.get('/v1/auth/verify/')
         request.COOKIES = {settings.AUTH_COOKIE_ACCESS_TOKEN: 'valid_token'}
 
         view = VerifyTokenView.as_view()
@@ -488,7 +488,7 @@ class TestVerifyTokenView:
             'error': 'Token is invalid or expired'
         }
         
-        request = factory.get('/api/v1/auth/verify/')
+        request = factory.get('/v1/auth/verify/')
         request.COOKIES = {settings.AUTH_COOKIE_ACCESS_TOKEN: 'invalid_token'}
 
         view = VerifyTokenView.as_view()
@@ -508,7 +508,7 @@ class TestVerifyTokenView:
 
     def test_verify_without_token_returns_401(self, factory):
         """トークンなしは401エラー"""
-        request = factory.get('/api/v1/auth/verify/')
+        request = factory.get('/v1/auth/verify/')
         request.COOKIES = {}
         
         view = VerifyTokenView.as_view()
@@ -576,7 +576,7 @@ class TestAdminUserView:
         mock_admin_serializer_class.return_value = mock_admin_serializer
         
         request = factory.patch(
-            '/api/v1/auth/user/',
+            '/v1/users/me/',
             data={'is_active': False},
             format='json'
         )

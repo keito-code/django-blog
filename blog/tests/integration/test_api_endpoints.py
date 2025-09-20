@@ -40,7 +40,7 @@ class TestPostViewSet:
             'content': 'Test Content',
             'status': 'draft'
         }
-        request = factory.post('/api/v1/blog/posts/', data, format='json')
+        request = factory.post('/v1/posts/', data, format='json')
         force_authenticate(request, user=user)
         
         response = view(request)
@@ -62,7 +62,7 @@ class TestPostViewSet:
         
         view = PostViewSet.as_view({'patch': 'partial_update'})
         data = {'title': 'Updated Title'}
-        request = factory.patch(f'/api/v1/blog/posts/{post.slug}/', data, format='json')
+        request = factory.patch(f'/v1/posts/{post.slug}/', data, format='json')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -82,7 +82,7 @@ class TestPostViewSet:
         
         view = PostViewSet.as_view({'patch': 'partial_update'})
         data = {'title': 'Hacked'}
-        request = factory.patch(f'/api/v1/blog/posts/{post.slug}/', data, format='json')
+        request = factory.patch(f'/v1/posts/{post.slug}/', data, format='json')
         force_authenticate(request, user=other_user)
         
         response = view(request, slug=post.slug)
@@ -101,7 +101,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'delete': 'destroy'})
-        request = factory.delete(f'/api/v1/blog/posts/{post.slug}/')
+        request = factory.delete(f'/v1/posts/{post.slug}/')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -119,7 +119,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'delete': 'destroy'})
-        request = factory.delete(f'/api/v1/blog/posts/{post.slug}/')
+        request = factory.delete(f'/v1/posts/{post.slug}/')
         force_authenticate(request, user=other_user)
         
         response = view(request, slug=post.slug)
@@ -139,7 +139,7 @@ class TestPostViewSet:
         
         view = PostViewSet.as_view({'patch': 'partial_update'})
         data = {'title': 'Hacked'}
-        request = factory.patch(f'/api/v1/blog/posts/{post.slug}/', data, format='json')
+        request = factory.patch(f'/v1/posts/{post.slug}/', data, format='json')
         force_authenticate(request, user=other_user)
         
         response = view(request, slug=post.slug)
@@ -159,7 +159,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'delete': 'destroy'})
-        request = factory.delete(f'/api/v1/blog/posts/{post.slug}/')
+        request = factory.delete(f'/v1/posts/{post.slug}/')
         force_authenticate(request, user=other_user)
         
         response = view(request, slug=post.slug)
@@ -178,7 +178,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'get': 'retrieve'})
-        request = factory.get(f'/api/v1/blog/posts/{post.slug}/')
+        request = factory.get(f'/v1/posts/{post.slug}/')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -196,7 +196,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'get': 'retrieve'})
-        request = factory.get(f'/api/v1/blog/posts/{post.slug}/')
+        request = factory.get(f'/v1/posts/{post.slug}/')
         force_authenticate(request, user=other_user)
         
         response = view(request, slug=post.slug)
@@ -213,7 +213,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'get': 'retrieve'})
-        request = factory.get(f'/api/v1/blog/posts/{post.slug}/')
+        request = factory.get(f'/v1/posts/{post.slug}/')
         # 認証なし
         
         response = view(request, slug=post.slug)
@@ -247,7 +247,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'get': 'list'})
-        request = factory.get('/api/v1/blog/posts/')
+        request = factory.get('/v1/posts/')
         force_authenticate(request, user=user)
         
         response = view(request)
@@ -268,7 +268,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'post': 'publish'})
-        request = factory.post(f'/api/v1/blog/posts/{post.slug}/publish/')
+        request = factory.post(f'/v1/posts/{post.slug}/publish/')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -287,7 +287,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'post': 'publish'})
-        request = factory.post(f'/api/v1/blog/posts/{post.slug}/publish/')
+        request = factory.post(f'/v1/posts/{post.slug}/publish/')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -307,7 +307,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'post': 'publish'})
-        request = factory.post(f'/api/v1/blog/posts/{post.slug}/publish/')
+        request = factory.post(f'/v1/posts/{post.slug}/publish/')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -324,7 +324,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'post': 'unpublish'})
-        request = factory.post(f'/api/v1/blog/posts/{post.slug}/unpublish/')
+        request = factory.post(f'/v1/posts/{post.slug}/unpublish/')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -343,7 +343,7 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'post': 'unpublish'})
-        request = factory.post(f'/api/v1/blog/posts/{post.slug}/unpublish/')
+        request = factory.post(f'/v1/posts/{post.slug}/unpublish/')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -364,7 +364,7 @@ class TestPostViewSet:
         Post.objects.create(title='Other Post', content='Content', author=other, status='published')
         
         view = PostViewSet.as_view({'get': 'my_posts'})
-        request = factory.get('/api/v1/blog/posts/my_posts/')
+        request = factory.get('/v1/posts/my_posts/')
         force_authenticate(request, user=user)
         
         response = view(request)
@@ -404,7 +404,7 @@ class TestCategoryViewSet:
         """管理者はカテゴリー作成可能"""
         view = CategoryViewSet.as_view({'post': 'create'})
         data = {'name': 'New Category'}
-        request = factory.post('/api/v1/blog/categories/', data, format='json')
+        request = factory.post('/v1/categories/', data, format='json')
         force_authenticate(request, user=admin_user)
         
         response = view(request)
@@ -418,7 +418,7 @@ class TestCategoryViewSet:
         """一般ユーザーはカテゴリー作成不可"""
         view = CategoryViewSet.as_view({'post': 'create'})
         data = {'name': 'Forbidden Category'}
-        request = factory.post('/api/v1/blog/categories/', data, format='json')
+        request = factory.post('/v1/categories/', data, format='json')
         force_authenticate(request, user=normal_user)
         
         response = view(request)
@@ -432,7 +432,7 @@ class TestCategoryViewSet:
         
         view = CategoryViewSet.as_view({'patch': 'partial_update'})
         data = {'name': 'New Name'}
-        request = factory.patch(f'/api/v1/blog/categories/{category.slug}/', data, format='json')
+        request = factory.patch(f'/v1/categories/{category.slug}/', data, format='json')
         force_authenticate(request, user=admin_user)
         
         response = view(request, slug=category.slug)
@@ -448,7 +448,7 @@ class TestCategoryViewSet:
         category = Category.objects.create(name='To Delete')
         
         view = CategoryViewSet.as_view({'delete': 'destroy'})
-        request = factory.delete(f'/api/v1/blog/categories/{category.slug}/')
+        request = factory.delete(f'/v1/categories/{category.slug}/')
         force_authenticate(request, user=admin_user)
         
         response = view(request, slug=category.slug)
@@ -462,7 +462,7 @@ class TestCategoryViewSet:
         Category.objects.create(name='Life')
         
         view = CategoryViewSet.as_view({'get': 'list'})
-        request = factory.get('/api/v1/blog/categories/')
+        request = factory.get('/v1/categories/')
         # 認証なし
         
         response = view(request)
@@ -500,7 +500,7 @@ class TestCategoryViewSet:
         )
         
         view = CategoryViewSet.as_view({'get': 'posts'})
-        request = factory.get(f'/api/v1/blog/categories/{category.slug}/posts/')
+        request = factory.get(f'/v1/categories/{category.slug}/posts/')
         force_authenticate(request, user=normal_user)
         
         response = view(request, slug=category.slug)
