@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import Post, Category
+from .utils.sanitizers import ContentSanitizer
 
 User = get_user_model()
 
@@ -52,9 +53,14 @@ class PostCreateSerializer(serializers.ModelSerializer):
         fields = ['title', 'content', 'status']
         
     def validate_title(self, value):
-        if len(value) < 3:
+        sanitized_title = ContentSanitizer.sanitize_text(value)
+
+        if len(sanitized_title) < 3:
             raise serializers.ValidationError("タイトルは3文字以上必要です")
-        return value
+        return sanitized_title
+
+    def validate_content(self, value):
+        return ContentSanitizer.sanitize_content(value)
 
     def validate(self, data):
         if data.get('title') == data.get('content'):
@@ -73,8 +79,17 @@ class PostUpdateSerializer(serializers.ModelSerializer):
         }
 
     def validate_title(self, value):
-        if value and len(value) < 3:
-            raise serializers.ValidationError("タイトルは3文字以上必要です")
+        if value:
+            sanitized_title = ContentSanitizer.sanitize_text(value)
+            if len(sanitized_title) < 3:
+                raise serializers.ValidationError("タイトルは3文字以上必要です")
+            
+            return sanitized_title
+        return value
+
+    def validate_content(self, value):
+        if value:
+            return ContentSanitizer.sanitize_content(value)
         return value
     
     def validate(self, data):
@@ -82,5 +97,3 @@ class PostUpdateSerializer(serializers.ModelSerializer):
             if data['title'] == data['content']:
                 raise serializers.ValidationError("タイトルと本文に同じ内容は設定できません")
         return data
-
-
