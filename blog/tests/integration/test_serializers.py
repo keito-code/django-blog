@@ -165,3 +165,80 @@ class TestPostSerializers:
         
         if serializer.is_valid():
             assert 'slug' not in serializer.validated_data
+
+@pytest.mark.django_db
+class TestPostSerializersSanitization:
+    """サニタイズ機能のテスト"""
+    
+    def test_create_sanitize_script_in_title(self):
+        """作成時：タイトルのスクリプトタグ除去"""
+        data = {
+            'title': '<script>alert("XSS")</script>Valid Title',
+            'content': 'Test content',
+            'status': 'draft'
+        }
+        serializer = PostCreateSerializer(data=data)
+        assert serializer.is_valid()
+        assert '<script>' not in serializer.validated_data['title']
+        assert 'alert' not in serializer.validated_data['title']
+        assert 'Valid Title' in serializer.validated_data['title']
+    
+    def test_create_sanitize_html_in_title(self):
+        """作成時：タイトルのHTMLタグ完全除去"""
+        data = {
+            'title': '<h1>Title</h1> with <strong>tags</strong>',
+            'content': 'Test content',
+            'status': 'draft'
+        }
+        serializer = PostCreateSerializer(data=data)
+        assert serializer.is_valid()
+        assert serializer.validated_data['title'] == 'Title with tags'
+    
+    def test_create_sanitize_content_dangerous_tags(self):
+        """作成時：コンテンツの危険なタグ除去"""
+        data = {
+            'title': 'Test Title',
+            'content': 'Normal <script>evil()</script> text <onclick="bad()">click</onclick>',
+            'status': 'draft'
+        }
+        serializer = PostCreateSerializer(data=data)
+        assert serializer.is_valid()
+        assert '<script>' not in serializer.validated_data['content']
+        assert 'onclick' not in serializer.validated_data['content']
+        assert 'Normal' in serializer.validated_data['content']
+        assert 'text' in serializer.validated_data['content']
+    
+    def test_create_sanitize_content_safe_tags(self):
+        """作成時：コンテンツの安全なタグは保持"""
+        data = {
+            'title': 'Test Title',
+            'content': '<p>Paragraph</p><strong>Bold</strong><em>Italic</em><code>Code</code>',
+            'status': 'draft'
+        }
+        serializer = PostCreateSerializer(data=data)
+        assert serializer.is_valid()
+        content = serializer.validated_data['content']
+        assert '<p>' in content
+        assert '<strong>' in content
+        assert '<em>' in content
+        assert '<code>' in content
+    
+    def test_update_partial_sanitize_title(self):
+        """更新時：タイトルのみのサニタイズ"""
+        data = {'title': '<b>Updated</b> Title'}
+        serializer = PostUpdateSerializer(data=data, partial=True)
+        assert serializer.is_valid()
+        assert serializer.validated_data['title'] == 'Updated Title'
+    
+    def test_validation_after_sanitization(self):
+        """サニタイズ後のバリデーション（3文字チェック）"""
+        # HTMLタグ除去後に2文字になるケース
+        data = {
+            'title': '<strong>AB</strong>',  # サニタイズ後 "AB"
+            'content': 'Valid content',
+            'status': 'draft'
+        }
+        serializer = PostCreateSerializer(data=data)
+        assert not serializer.is_valid()
+        assert 'title' in serializer.errors
+        assert '3文字以上' in str(serializer.errors['title'])
