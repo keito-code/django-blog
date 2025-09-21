@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import Mock, patch
 from rest_framework.exceptions import ValidationError
+from rest_framework import viewsets
 from blog.api_views import PostViewSet
 
 
@@ -60,8 +61,8 @@ class TestPostViewSetLogic:
         
         mock_serializer.save.assert_called_once_with(author=viewset.request.user)
 
-    def test_publish_changes_status_to_published(self):
-        """publishメソッドがstatusを'published'に変更することを確認"""
+    def test_partial_update_changes_status_to_published(self):
+        """partial_updateでstatusを'published'に変更することを確認"""
         viewset = PostViewSet()
         
         # Mockの設定
@@ -70,21 +71,18 @@ class TestPostViewSetLogic:
         mock_post.save = Mock()
         
         viewset.get_object = Mock(return_value=mock_post)
-        viewset.get_serializer = Mock(return_value=Mock(data={'id': 1}))
         viewset.request = Mock()
+        viewset.request.data = {'status': 'published'}
         viewset.request.user = Mock()
         
-        # publishを実行（エラーが出ないことを確認）
-        try:
-            viewset.publish(viewset.request, slug='test-slug')
-        except:
-            pass  # Responseの作成でエラーが出ても、ロジックは確認できる
+        # 親クラスのpartial_updateをMock
+        with patch.object(viewsets.ModelViewSet, 'partial_update', return_value=Mock()):
+            response = viewset.partial_update(viewset.request, slug='test-slug')
         
-        # statusが変更されたことを確認
-        assert mock_post.status == 'published'
-        mock_post.save.assert_called_once()
+        # ValidationErrorが発生しなければOK（statusチェックを通過）
+        # 実際の更新は親クラスのpartial_updateが行う
     
-    def test_publish_raises_error_when_already_published(self):
+    def test_partial_update_raises_error_when_already_published(self):
         """既に公開済みの場合はValidationErrorを発生させる"""
         viewset = PostViewSet()
         
@@ -92,12 +90,14 @@ class TestPostViewSetLogic:
         mock_post.status = 'published'
         viewset.get_object = Mock(return_value=mock_post)
         viewset.request = Mock()
+        viewset.request.data = {'status': 'published'}
         
-        with pytest.raises(ValidationError):
-            viewset.publish(viewset.request, slug='test-slug')
+        with pytest.raises(ValidationError) as exc_info:
+            viewset.partial_update(viewset.request, slug='test-slug')
+        assert 'この投稿は既に公開状態です' in str(exc_info.value)
     
-    def test_unpublish_changes_status_to_draft(self):
-        """unpublishメソッドがstatusを'draft'に変更することを確認"""
+    def test_partial_update_changes_status_to_draft(self):
+        """partial_updateでstatusを'draft'に変更することを確認"""
         viewset = PostViewSet()
         
         # Mockの設定
@@ -106,21 +106,17 @@ class TestPostViewSetLogic:
         mock_post.save = Mock()
         
         viewset.get_object = Mock(return_value=mock_post)
-        viewset.get_serializer = Mock(return_value=Mock(data={'id': 1}))
         viewset.request = Mock()
+        viewset.request.data = {'status': 'draft'}
         viewset.request.user = Mock()
         
-        # unpublishを実行（エラーが出ないことを確認）
-        try:
-            viewset.unpublish(viewset.request, slug='test-slug')
-        except:
-            pass  # Responseの作成でエラーが出ても、ロジックは確認できる
+        # 親クラスのpartial_updateをMock
+        with patch.object(viewsets.ModelViewSet, 'partial_update', return_value=Mock()):
+            response = viewset.partial_update(viewset.request, slug='test-slug')
         
-        # statusが変更されたことを確認
-        assert mock_post.status == 'draft'
-        mock_post.save.assert_called_once()
+        # ValidationErrorが発生しなければOK（statusチェックを通過）
         
-    def test_unpublish_already_draft_raises_error(self):
+    def test_partial_update_already_draft_raises_error(self):
         """既に下書きの投稿を下書きにしようとするとエラー"""
         viewset = PostViewSet()
         
@@ -129,7 +125,23 @@ class TestPostViewSetLogic:
         viewset.get_object = Mock(return_value=mock_post)
         
         viewset.request = Mock()
+        viewset.request.data = {'status': 'draft'}
         
-        with pytest.raises(ValidationError):
-            viewset.unpublish(viewset.request, slug='test-slug')
+        with pytest.raises(ValidationError) as exc_info:
+            viewset.partial_update(viewset.request, slug='test-slug')
+        assert 'この投稿は既に下書き状態です' in str(exc_info.value)
+
+    def test_partial_update_invalid_status_raises_error(self):
+        """不正なstatus値の場合はValidationErrorを発生させる"""
+        viewset = PostViewSet()
         
+        mock_post = Mock()
+        mock_post.status = 'draft'
+        viewset.get_object = Mock(return_value=mock_post)
+        
+        viewset.request = Mock()
+        viewset.request.data = {'status': 'invalid_status'}
+        
+        with pytest.raises(ValidationError) as exc_info:
+            viewset.partial_update(viewset.request, slug='test-slug')
+        assert '有効なステータスは "draft" または "published" です' in str(exc_info.value)

@@ -2,7 +2,7 @@ import pytest
 from rest_framework.test import APIRequestFactory, force_authenticate
 from rest_framework import status
 from django.contrib.auth import get_user_model
-from blog.api_views import PostViewSet, CategoryViewSet
+from blog.api_views import PostViewSet, UserPostListView, CategoryViewSet
 from blog.models import Post, Category
 
 User = get_user_model()
@@ -259,7 +259,7 @@ class TestPostViewSet:
         assert 'Other Draft' not in titles  # 他人の下書きは見えない
 
     def test_publish_draft_post(self, factory, user):
-        """下書きを公開"""
+        """下書きを公開(PATCHでstatus変更)"""
         post = Post.objects.create(
             title='Draft to Publish',
             content='Content',
@@ -267,8 +267,9 @@ class TestPostViewSet:
             status='draft'
         )
         
-        view = PostViewSet.as_view({'post': 'publish'})
-        request = factory.post(f'/v1/posts/{post.slug}/publish/')
+        view = PostViewSet.as_view({'patch': 'partial_update'})
+        data = {'status': 'published'}
+        request = factory.patch(f'/v1/posts/{post.slug}/', data, format='json')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -286,8 +287,9 @@ class TestPostViewSet:
             status='published'
         )
         
-        view = PostViewSet.as_view({'post': 'publish'})
-        request = factory.post(f'/v1/posts/{post.slug}/publish/')
+        view = PostViewSet.as_view({'patch': 'partial_update'})
+        data = {'status': 'published'}
+        request = factory.patch(f'/v1/posts/{post.slug}/', data, format='json')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -305,9 +307,10 @@ class TestPostViewSet:
             author=other_user,
             status='draft'
         )
-        
-        view = PostViewSet.as_view({'post': 'publish'})
-        request = factory.post(f'/v1/posts/{post.slug}/publish/')
+
+        view = PostViewSet.as_view({'patch': 'partial_update'})
+        data = {'status': 'published'}
+        request = factory.patch(f'/v1/posts/{post.slug}/', data, format='json')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -315,16 +318,17 @@ class TestPostViewSet:
         assert response.status_code == status.HTTP_404_NOT_FOUND  # QuerySetでフィルタされるため404
     
     def test_unpublish_published_post(self, factory, user):
-        """公開記事を下書きに戻す"""
+        """公開記事を下書きに戻す(PATCHでstatus変更)"""
         post = Post.objects.create(
             title='Published to Draft',
             content='Content',
             author=user,
             status='published'
         )
-        
-        view = PostViewSet.as_view({'post': 'unpublish'})
-        request = factory.post(f'/v1/posts/{post.slug}/unpublish/')
+
+        view = PostViewSet.as_view({'patch': 'partial_update'})
+        data = {'status': 'draft'}
+        request = factory.patch(f'/v1/posts/{post.slug}/', data, format='json')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -341,9 +345,10 @@ class TestPostViewSet:
             author=user,
             status='draft'
         )
-        
-        view = PostViewSet.as_view({'post': 'unpublish'})
-        request = factory.post(f'/v1/posts/{post.slug}/unpublish/')
+
+        view = PostViewSet.as_view({'patch': 'partial_update'})
+        data = {'status': 'draft'}
+        request = factory.patch(f'/v1/posts/{post.slug}/', data, format='json')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
@@ -352,9 +357,10 @@ class TestPostViewSet:
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         assert response.data['status'] == 'fail'
         assert 'data' in response.data
+
+    def test_my_posts_endpoint(self, factory, user):
+        """/v1/users/me/posts/エンドポイントで自分の投稿を取得"""
         
-    def test_my_posts_action(self, factory, user):
-        """my_postsアクションで自分の投稿のみ取得"""
         # 自分の投稿
         Post.objects.create(title='My Post 1', content='Content', author=user, status='published')
         Post.objects.create(title='My Post 2', content='Content', author=user, status='draft')
@@ -363,8 +369,8 @@ class TestPostViewSet:
         other = User.objects.create_user(username='other3', email='other3@example.com')
         Post.objects.create(title='Other Post', content='Content', author=other, status='published')
         
-        view = PostViewSet.as_view({'get': 'my_posts'})
-        request = factory.get('/v1/posts/my_posts/')
+        view = UserPostListView.as_view()
+        request = factory.get('/v1/users/me/posts/')
         force_authenticate(request, user=user)
         
         response = view(request)
@@ -374,8 +380,7 @@ class TestPostViewSet:
         assert 'My Post 1' in titles
         assert 'My Post 2' in titles
         assert 'Other Post' not in titles
-
-
+        
 @pytest.mark.django_db
 class TestCategoryViewSet:
     """CategoryViewSetのユニットテスト"""
