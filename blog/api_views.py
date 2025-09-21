@@ -1,4 +1,4 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, generics
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
@@ -26,11 +26,8 @@ class PostViewSet(viewsets.ModelViewSet):
     - GET /v1/posts/ - 記事一覧
     - POST /v1/posts/ - 記事作成（要認証）
     - GET /v1/posts/{slug}/ - 記事詳細
-    - PUT/PATCH /v1/posts/{slug}/ - 記事更新（作者のみ）
+    - PATCH /v1/posts/{slug}/ - 記事更新（作者のみ、status変更で公開/下書き切り替え）
     - DELETE /v1/posts/{slug}/ - 記事削除（作者のみ）
-    - GET /v1/posts/my_posts/ - 自分の投稿一覧（要認証）
-    - POST /v1/posts/{slug}/publish/ - 投稿を公開（作者のみ）
-    - POST /v1/posts/{slug}/unpublish/ - 投稿を下書きに戻す（作者のみ）
     """
     
     permission_classes = [IsAuthorOrReadOnly]
@@ -68,57 +65,49 @@ class PostViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """作成時に作者を自動設定"""
         serializer.save(author=self.request.user)
+
+    def partial_update(self, request, *args, **kwargs):
+        """
+        記事の部分更新（status変更による公開/下書き切り替えを含む）
+        
+        PATCH /v1/posts/{slug}/
+        {
+            "status": "published"  // または "draft"
+        }
+        """
+        instance = self.get_object()
+        
+        # status変更時のバリデーション
+        if 'status' in request.data:
+            new_status = request.data['status']
+            
+            # バリデーション
+            if new_status not in ['draft', 'published']:
+                raise ValidationError({'status': '有効なステータスは "draft" または "published" です'})
+                        
+            # 同じステータスへの変更チェック
+            if instance.status == new_status:
+                status_text = '公開' if new_status == 'published' else '下書き'
+                raise ValidationError(f'この投稿は既に{status_text}状態です')
+        
+        return super().partial_update(request, *args, **kwargs)
+
+class UserPostListView(generics.ListAPIView):
+    """
+    ユーザーの投稿一覧
+    GET /v1/users/me/posts/
+    """
+    serializer_class = PostListSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = CustomPageNumberPagination
+    filter_backends = [filters.OrderingFilter]
+    ordering = ['-created_at']
     
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
-    def my_posts(self, request):
-        """現在のユーザーの投稿一覧"""
-        posts = self.get_queryset().filter(author=request.user)
-        page = self.paginate_queryset(posts)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(posts, many=True)
-        return Response(serializer.data)
-    
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAuthorOrReadOnly])
-    def publish(self, request, slug=None):
-        """
-        下書きを公開
-        
-        権限チェックはIsAuthorOrReadOnlyが処理
-        エラーはDRF標準例外をraiseし、custom_exception_handlerがJSend形式に変換
-        成功時はレンダラーが自動的にJSend形式にラップ
-        """
-        post = self.get_object()
-        
-        # 既に公開済みの場合はバリデーションエラー
-        if post.status == 'published':
-            raise ValidationError('この投稿は既に公開されています')
-        
-        post.status = 'published'
-        post.save(update_fields=['status', 'updated_at'])
-        
-        serializer = PostDetailSerializer(post)
-        return Response(serializer.data)  # レンダラーが自動的にJSend形式に
-    
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAuthorOrReadOnly])
-    def unpublish(self, request, slug=None):
-        """
-        公開記事を下書きに戻す
-        
-        権限チェックはIsAuthorOrReadOnlyが処理
-        """
-        post = self.get_object()
-        
-        # 既に下書きの場合はバリデーションエラー
-        if post.status == 'draft':
-            raise ValidationError('この投稿は既に下書き状態です')
-        
-        post.status = 'draft'
-        post.save(update_fields=['status', 'updated_at'])
-        
-        serializer = PostDetailSerializer(post)
-        return Response(serializer.data)  # レンダラーが自動的にJSend形式に
+    def get_queryset(self):
+        """現在のユーザーの投稿を返す"""
+        return Post.objects.filter(
+            author=self.request.user
+        ).select_related('author', 'category')
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
