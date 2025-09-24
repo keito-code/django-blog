@@ -111,6 +111,8 @@ MIDDLEWARE = [
     'axes.middleware.AxesMiddleware',
 ]
 
+CSRF_FAILURE_VIEW = 'core.views.csrf_failure'
+
 ROOT_URLCONF = 'myblog.urls'
 
 TEMPLATES = [
