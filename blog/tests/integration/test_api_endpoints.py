@@ -279,7 +279,7 @@ class TestPostViewSet:
         assert post.status == 'published'
     
     def test_publish_already_published(self, factory, user):
-        """既に公開済みの投稿を公開しようとするとエラー(422)"""
+        """既に公開済みの投稿を公開してもエラーにならない（無視される）"""
         post = Post.objects.create(
             title='Already Published',
             content='Content',
@@ -288,16 +288,17 @@ class TestPostViewSet:
         )
         
         view = PostViewSet.as_view({'patch': 'partial_update'})
-        data = {'status': 'published'}
+        data = {'status': 'published', 'title': 'Title Updated'}
         request = factory.patch(f'/v1/posts/{post.slug}/', data, format='json')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
 
-        # ValidationErrorは422で返される
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        assert response.data['status'] == 'fail'
-        assert 'data' in response.data
+        # statusは無視されて、titleのみ更新される
+        assert response.status_code == status.HTTP_200_OK
+        post.refresh_from_db()
+        assert post.status == 'published'  # 変更なし
+        assert post.title == 'Title Updated'  # titleは更新される
         
     def test_publish_other_users_post(self, factory, user, other_user):
         """他人の投稿は公開できない"""
@@ -338,7 +339,7 @@ class TestPostViewSet:
         assert post.status == 'draft'
     
     def test_unpublish_already_draft(self, factory, user):
-        """既に下書きの投稿を下書きにしようとするとエラー(422)"""
+        """既に下書きの投稿を下書きにしてもエラーにならない（無視される）"""
         post = Post.objects.create(
             title='Already Draft',
             content='Content',
@@ -347,16 +348,17 @@ class TestPostViewSet:
         )
 
         view = PostViewSet.as_view({'patch': 'partial_update'})
-        data = {'status': 'draft'}
+        data = {'status': 'draft', 'content': 'Updated Content'}
         request = factory.patch(f'/v1/posts/{post.slug}/', data, format='json')
         force_authenticate(request, user=user)
         
         response = view(request, slug=post.slug)
 
-        # ValidationErrorは422で返される
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        assert response.data['status'] == 'fail'
-        assert 'data' in response.data
+        # statusは無視されて、contentのみ更新される
+        assert response.status_code == status.HTTP_200_OK
+        post.refresh_from_db()
+        assert post.status == 'draft'  # 変更なし
+        assert post.content == 'Updated Content'  # contentは更新される
 
     def test_my_posts_endpoint(self, factory, user):
         """/v1/users/me/posts/エンドポイントで自分の投稿を取得"""

@@ -76,6 +76,8 @@ class PostViewSet(viewsets.ModelViewSet):
         }
         """
         instance = self.get_object()
+
+        data = request.data.copy() 
         
         # status変更時のバリデーション
         if 'status' in request.data:
@@ -83,14 +85,18 @@ class PostViewSet(viewsets.ModelViewSet):
             
             # バリデーション
             if new_status not in ['draft', 'published']:
-                raise ValidationError({'status': '有効なステータスは "draft" または "published" です'})
+                raise ValidationError({
+                    'status': '有効なステータスは "draft" または "published" です'
+                })
                         
-            # 同じステータスへの変更チェック
+            # 同じステータスならフィールドを無視
             if instance.status == new_status:
-                status_text = '公開' if new_status == 'published' else '下書き'
-                raise ValidationError(f'この投稿は既に{status_text}状態です')
-        
-        return super().partial_update(request, *args, **kwargs)
+                data.pop('status')
+
+        serializer = self.get_serializer(instance, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
 
 class UserPostListView(generics.ListAPIView):
     """
