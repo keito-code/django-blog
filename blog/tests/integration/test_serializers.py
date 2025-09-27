@@ -34,6 +34,7 @@ class TestPostSerializers:
             content='Original Content',
             author=user
         )
+
     
     # === バリデーションテスト ===
     def test_create_validation_title_too_short(self):
@@ -158,13 +159,20 @@ class TestPostSerializers:
         serializer = PostListSerializer(post)
         assert 'content' not in serializer.data
 
-    def test_category_serializer_slug_readonly(self):
-        """カテゴリ：slugがread_only"""
+    def test_category_serializer_readonly_fields_and_output(self):
+        """カテゴリ：slugがread_only、post_countが出力に含まれる"""
         category = Category.objects.create(name='Test Category')
         serializer = CategorySerializer(category, data={'name': 'Updated', 'slug': 'manual'}, partial=True)
-        
         if serializer.is_valid():
             assert 'slug' not in serializer.validated_data
+
+        # シリアライザ出力の確認
+        output_serializer = CategorySerializer(category)
+        assert 'id' in output_serializer.data
+        assert 'name' in output_serializer.data
+        assert 'slug' in output_serializer.data
+        assert 'post_count' in output_serializer.data
+        assert output_serializer.data['post_count'] == 0  # デフォルト値
 
 @pytest.mark.django_db
 class TestPostSerializersSanitization:

@@ -7,14 +7,14 @@ User = get_user_model()
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    """カテゴリーシリアライザー"""
+    post_count = serializers.IntegerField(read_only=True, default=0)
+
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug']
-        read_only_fields = ['slug']
+        fields = ['id', 'name', 'slug', 'post_count']
+        read_only_fields = ['slug', 'post_count']
 
 class PostListSerializer(serializers.ModelSerializer):
-    """記事一覧用"""
     author_name = serializers.SerializerMethodField()
     category = CategorySerializer(read_only=True)
     
@@ -31,7 +31,6 @@ class PostListSerializer(serializers.ModelSerializer):
         return f"Author{obj.author.id}"
     
 class PostDetailSerializer(serializers.ModelSerializer):
-    """記事詳細用"""
     author_name = serializers.SerializerMethodField()
     category = CategorySerializer(read_only=True)
     
@@ -47,7 +46,6 @@ class PostDetailSerializer(serializers.ModelSerializer):
         return f"Author{obj.author.id}"
 
 class PostCreateSerializer(serializers.ModelSerializer):
-    """記事作成用（認証必要）"""
     class Meta:
         model = Post
         fields = ['title', 'content', 'status']
@@ -68,7 +66,6 @@ class PostCreateSerializer(serializers.ModelSerializer):
         return data
 
 class PostUpdateSerializer(serializers.ModelSerializer):
-    """記事更新用（認証必要）"""
     class Meta:
         model = Post
         fields = ['title', 'content', 'status']
