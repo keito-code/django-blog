@@ -134,6 +134,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
     )
     serializer_class = CategorySerializer
     lookup_field = 'slug'
+    pagination_class = None # カテゴリーの数が少ないと判断したため
     
     def get_permissions(self):
         """メソッドに応じた権限設定"""
@@ -148,12 +149,13 @@ class CategoryViewSet(viewsets.ModelViewSet):
         posts = Post.objects.filter(
             category=category,
             status='published'
-        ).select_related('author')
-        
-        page = self.paginate_queryset(posts)
+        ).select_related('author').order_by('-created_at')
+        paginator = CustomPageNumberPagination() # 投稿数が多くなると判断したため
+        page = paginator.paginate_queryset(posts, request)
+
         if page is not None:
             serializer = PostListSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            return paginator.get_paginated_response(serializer.data)
         
         serializer = PostListSerializer(posts, many=True)
         return Response(serializer.data)

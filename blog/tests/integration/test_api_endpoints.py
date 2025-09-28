@@ -475,10 +475,53 @@ class TestCategoryViewSet:
         response = view(request)
         
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data['results']) == 2
+        # ページネーションなしなので直接配列
+        assert isinstance(response.data, list)
+        assert len(response.data) == 2
+        assert response.data[0]['name'] in ['Tech', 'Life']
+        assert response.data[1]['name'] in ['Tech', 'Life']
+
+    def test_list_categories_with_post_count(self, factory, normal_user):
+        """カテゴリー一覧にpost_countが含まれる"""
+        category = Category.objects.create(name='Tech')
+        user = User.objects.create_user(username='author', email='author@example.com')
+        
+        # 公開記事を2つ
+        Post.objects.create(
+            title='Post 1',
+            content='Content',
+            author=user,
+            category=category,
+            status='published'
+        )
+        Post.objects.create(
+            title='Post 2',
+            content='Content',
+            author=user,
+            category=category,
+            status='published'
+        )
+        # 下書きを1つ（カウントされない）
+        Post.objects.create(
+            title='Draft',
+            content='Content',
+            author=user,
+            category=category,
+            status='draft'
+        )
+        
+        view = CategoryViewSet.as_view({'get': 'list'})
+        request = factory.get('/v1/categories/')
+        
+        response = view(request)
+        
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data) == 1
+        assert response.data[0]['name'] == 'Tech'
+        assert response.data[0]['post_count'] == 2  # 公開記事のみ
     
     def test_category_posts_action(self, factory, normal_user):
-        """カテゴリーに属する投稿一覧を取得"""
+        """カテゴリーに属する投稿一覧を取得(ページネーション有効)"""
         category = Category.objects.create(name='Tech')
         user = User.objects.create_user(username='author', email='author@example.com')
         
@@ -513,7 +556,12 @@ class TestCategoryViewSet:
         response = view(request, slug=category.slug)
         
         assert response.status_code == status.HTTP_200_OK
+        # postsアクションはページネーション有効
+        assert 'results' in response.data
+        assert 'count' in response.data
+        assert response.data['count'] == 2
         titles = [post['title'] for post in response.data['results']]
         assert 'Tech Post 1' in titles
         assert 'Tech Post 2' in titles
         assert 'Tech Draft' not in titles  # 下書きは表示されない
+
