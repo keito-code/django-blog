@@ -7,12 +7,15 @@ User = get_user_model()
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    post_count = serializers.IntegerField(read_only=True, default=0)
+    post_count = serializers.SerializerMethodField()  # 動的計算に変更
 
     class Meta:
         model = Category
         fields = ['id', 'name', 'slug', 'post_count']
         read_only_fields = ['slug', 'post_count']
+
+    def get_post_count(self, obj):
+        return obj.posts.filter(status='published').count()
 
 class PostListSerializer(serializers.ModelSerializer):
     author_name = serializers.SerializerMethodField()
@@ -46,9 +49,11 @@ class PostDetailSerializer(serializers.ModelSerializer):
         return f"Author{obj.author.id}"
 
 class PostCreateSerializer(serializers.ModelSerializer):
+    category_id = serializers.IntegerField(required=False, allow_null=True)
+
     class Meta:
         model = Post
-        fields = ['title', 'content', 'status']
+        fields = ['title', 'content', 'status', 'category_id']
         
     def validate_title(self, value):
         sanitized_title = ContentSanitizer.sanitize_text(value)
@@ -65,10 +70,18 @@ class PostCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("タイトルと本文に同じ内容は設定できません")
         return data
 
+    def create(self, validated_data):
+        category_id = validated_data.pop('category_id', None)
+        if category_id:
+            validated_data['category_id'] = category_id
+        return super().create(validated_data)
+
 class PostUpdateSerializer(serializers.ModelSerializer):
+    category_id = serializers.IntegerField(required=False, allow_null=True)
+
     class Meta:
         model = Post
-        fields = ['title', 'content', 'status']
+        fields = ['title', 'content', 'status', 'category_id']
         extra_kwargs = {
             'title': {'required': False},
             'content': {'required': False},
