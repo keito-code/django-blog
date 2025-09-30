@@ -5,7 +5,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count
 from rest_framework.decorators import action
 from rest_framework.response import Response
-
+from core.responses import ResponseFormatter
+from .mixins import JSendResponseMixin
 from .models import Post, Category
 from .serializers import (
     PostListSerializer,
@@ -18,7 +19,7 @@ from .permissions import IsAuthorOrReadOnly
 from .pagination import CustomPageNumberPagination
 
 
-class PostViewSet(viewsets.ModelViewSet):
+class PostViewSet(JSendResponseMixin, viewsets.ModelViewSet):
     """
     ブログ記事のCRUD操作を提供するAPI ViewSet
     
@@ -29,6 +30,10 @@ class PostViewSet(viewsets.ModelViewSet):
     - PATCH /v1/posts/{slug}/ - 記事更新（作者のみ、status変更で公開/下書き切り替え）
     - DELETE /v1/posts/{slug}/ - 記事削除（作者のみ）
     """
+
+    # リソース名を定義
+    resource_name = 'posts'
+    resource_name_singular = 'post'
     
     permission_classes = [IsAuthorOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -96,7 +101,11 @@ class PostViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        return Response(serializer.data)
+
+        # JSend形式で返す
+        return ResponseFormatter.success({
+            self.resource_name_singular: serializer.data
+        })
 
 class UserPostListView(generics.ListAPIView):
     """
@@ -108,6 +117,9 @@ class UserPostListView(generics.ListAPIView):
     pagination_class = CustomPageNumberPagination
     filter_backends = [filters.OrderingFilter]
     ordering = ['-created_at']
+
+    # リソース名を定義（ページネーション用）
+    resource_name = 'posts'
     
     def get_queryset(self):
         """現在のユーザーの投稿を返す"""
@@ -116,7 +128,7 @@ class UserPostListView(generics.ListAPIView):
         ).select_related('author', 'category')
 
 
-class CategoryViewSet(viewsets.ModelViewSet):
+class CategoryViewSet(JSendResponseMixin, viewsets.ModelViewSet):
     """
     カテゴリーのCRUD操作を提供するAPI ViewSet
     
@@ -128,6 +140,10 @@ class CategoryViewSet(viewsets.ModelViewSet):
     - DELETE /v1/categories/{slug}/ - カテゴリー削除（管理者のみ）
     - GET /v1/categories/{slug}/posts/ - カテゴリーの投稿一覧（誰でも）
     """
+
+    # リソース名を定義
+    resource_name = 'categories'
+    resource_name_singular = 'category'
     
     queryset = Category.objects.annotate(
         post_count=Count('posts', filter=Q(posts__status='published'))
@@ -158,4 +174,6 @@ class CategoryViewSet(viewsets.ModelViewSet):
             return paginator.get_paginated_response(serializer.data)
         
         serializer = PostListSerializer(posts, many=True)
-        return Response(serializer.data)
+        return ResponseFormatter.success({
+            'posts': serializer.data
+        })
