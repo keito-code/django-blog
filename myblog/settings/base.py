@@ -375,22 +375,13 @@ REST_FRAMEWORK = {
 # drf-spectacular設定
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Django Blog API',
-    'DESCRIPTION': 'ブログシステムのREST API',
+    'DESCRIPTION': 'ブログシステムのAPI',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
-
-     'SECURITY': [
-        {'bearerAuth': []}
+    'AUTHENTICATION_EXTENSIONS': [
+        'accounts.schema_extensions.CookieJWTAuthenticationScheme',
     ],
-
-    'SECURITY_SCHEMES': {
-        'bearerAuth': {
-            'type': 'http',
-            'scheme': 'bearer',
-            'bearerFormat': 'JWT',
-        }
-    },
 
     'POSTPROCESSING_HOOKS': [
         'drf_spectacular.contrib.djangorestframework_camel_case.camelize_serializer_fields'

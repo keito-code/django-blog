@@ -15,6 +15,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema
 from .services import AuthService, UserService
 from core.responses import ResponseFormatter
+from rest_framework.generics import GenericAPIView
 from .serializers import (
     LoginSerializer,
     LoginSuccessResponseSerializer,
@@ -135,12 +136,13 @@ class LoginView(APIView):
         return response
 
 @method_decorator(csrf_protect, name='dispatch')
-class LogoutView(APIView):
+class LogoutView(GenericAPIView):
     """ログアウトエンドポイント"""
-    # authentication_classes不要（グローバル設定を使用）
     permission_classes = [IsAuthenticated]
+    serializer_class = SuccessResponseSerializer
     
     @extend_schema(
+        request=None,
         responses={
             200: SuccessResponseSerializer,
             401: ErrorResponseSerializer,
@@ -183,12 +185,14 @@ class LogoutView(APIView):
         return response
 
 @method_decorator(csrf_protect, name='dispatch')
-class RefreshTokenView(APIView):
+class RefreshTokenView(GenericAPIView):
     """トークンリフレッシュエンドポイント"""
     authentication_classes = []
     permission_classes = [AllowAny]
+    serializer_class = SuccessResponseSerializer
     
     @extend_schema(
+        request=None,
         responses={
             200: SuccessResponseSerializer,
             401: ErrorResponseSerializer,
@@ -305,7 +309,6 @@ class RegisterView(APIView):
 @method_decorator(csrf_protect, name='dispatch')
 class CurrentUserView(APIView):
     """現在のユーザー情報エンドポイント"""
-    # authentication_classes不要（グローバル設定を使用）
     permission_classes = [IsAuthenticated]
 
     def get_user_serializer(self):

@@ -114,7 +114,7 @@ class AdminUpdateUserSerializer(serializers.ModelSerializer):
 class SuccessResponseSerializer(serializers.Serializer):
     """データなしの成功レスポンス"""
     status = serializers.CharField(read_only=True, default="success")
-    data = serializers.ReadOnlyField(allow_null=True, default=None)
+    data = serializers.JSONField(allow_null=True, default=None, read_only=True)
 
 class FailResponseSerializer(serializers.Serializer):
     """
@@ -188,6 +188,3 @@ class AdminUserDataSerializer(serializers.Serializer):
 class AdminUserResponseSerializer(serializers.Serializer):
     status = serializers.CharField(read_only=True, default="success")
     data = AdminUserDataSerializer(read_only=True)
-
-
-
