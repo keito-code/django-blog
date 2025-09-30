@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema_field
 from .models import Post, Category
 from .utils.sanitizers import ContentSanitizer
 
@@ -14,7 +15,8 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'post_count']
         read_only_fields = ['slug', 'post_count']
 
-    def get_post_count(self, obj):
+    @extend_schema_field(serializers.IntegerField())
+    def get_post_count(self, obj) -> int:
         return obj.posts.filter(status='published').count()
 
 class PostListSerializer(serializers.ModelSerializer):
@@ -29,8 +31,9 @@ class PostListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['slug']
 
-    def get_author_name(self, obj):
-        # プライバシー保護のため匿名化
+    @extend_schema_field(serializers.CharField())
+    def get_author_name(self, obj) -> str:
+        """プライバシー保護のため匿名化"""
         return f"Author{obj.author.id}"
     
 class PostDetailSerializer(serializers.ModelSerializer):
@@ -45,7 +48,8 @@ class PostDetailSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['slug']
 
-    def get_author_name(self, obj):
+    @extend_schema_field(serializers.CharField())
+    def get_author_name(self, obj) -> str:
         return f"Author{obj.author.id}"
 
 class PostCreateSerializer(serializers.ModelSerializer):
