@@ -341,13 +341,13 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'accounts.authentication.CookieJWTAuthentication',
     ],
-    'DEFAULT_RENDERER_CLASSES': (
-        'core.renderers.JSendCamelCaseRenderer',  # 変更: 統合レンダラー
+    'DEFAULT_RENDERER_CLASSES': [
+        'core.renderers.JSendCamelCaseRenderer',
         'djangorestframework_camel_case.render.CamelCaseBrowsableAPIRenderer',
-    ),
+    ] if DEBUG else [
+        'core.renderers.JSendCamelCaseRenderer',
+    ],
     'DEFAULT_PARSER_CLASSES': (
-        'djangorestframework_camel_case.parser.CamelCaseFormParser',
-        'djangorestframework_camel_case.parser.CamelCaseMultiPartParser',
         'djangorestframework_camel_case.parser.CamelCaseJSONParser',
     ),
     "EXCEPTION_HANDLER": 'core.exceptions.custom_exception_handler',
@@ -382,6 +382,8 @@ SPECTACULAR_SETTINGS = {
     'AUTHENTICATION_EXTENSIONS': [
         'accounts.schema_extensions.CookieJWTAuthenticationScheme',
     ],
+
+    'REQUEST_BODY_DEFAULT_CONTENTS': ['application/json'],
 
     'POSTPROCESSING_HOOKS': [
         'drf_spectacular.contrib.djangorestframework_camel_case.camelize_serializer_fields'
