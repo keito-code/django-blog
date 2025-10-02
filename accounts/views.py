@@ -46,9 +46,12 @@ class CSRFTokenView(APIView):
     permission_classes = [AllowAny]
     
     @extend_schema(
+        summary="CSRFトークン取得",
+        description="CSRFトークンをCookieに設定して返す。フォーム送信前に必要",
         responses={
             200: CSRFTokenResponseSerializer
-        }
+        },
+        tags=['Authentication']
     )
 
     def get(self, request):
@@ -77,13 +80,16 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
     
     @extend_schema(
+        summary="ユーザーログイン",
+        description="メールアドレスとパスワードでログイン。JWTトークンをHttpOnly Cookieに設定",
         request=LoginSerializer,
         responses={
             200: LoginSuccessResponseSerializer,
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer, 
             422: FailResponseSerializer
-        }
+        },
+        tags=['Authentication']
     )
     def post(self, request):
         """ユーザーログイン処理"""
@@ -144,12 +150,15 @@ class LogoutView(GenericAPIView):
     serializer_class = SuccessResponseSerializer
     
     @extend_schema(
+        summary="ログアウト",
+        description="リフレッシュトークンを無効化し、認証Cookieを削除",
         request=None,
         responses={
             200: SuccessResponseSerializer,
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer
-        }
+        },
+        tags=['Authentication']
     )
     def post(self, request):
         """ログアウト処理"""
@@ -194,12 +203,15 @@ class RefreshTokenView(GenericAPIView):
     serializer_class = SuccessResponseSerializer
     
     @extend_schema(
+        summary="トークンリフレッシュ",
+        description="リフレッシュトークンを使用してアクセストークンを更新",
         request=None,
         responses={
             200: SuccessResponseSerializer,
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer
-        }
+        },
+        tags=['Authentication']
     )
     def post(self, request):
         """アクセストークンを更新"""
@@ -252,12 +264,15 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
     
     @extend_schema(
+        summary="ユーザー登録",
+        description="新規ユーザーを登録し、自動的にログイン状態にする",
         request=RegisterSerializer,
         responses={
             201: RegisterSuccessResponseSerializer,
             403: ErrorResponseSerializer,
             422: FailResponseSerializer
-        }
+        },
+        tags=['Authentication']
     )
     def post(self, request):
         """新規ユーザー登録"""
@@ -329,11 +344,14 @@ class CurrentUserView(APIView):
         return PrivateUserSerializer
     
     @extend_schema(
+        summary="現在のユーザー情報取得",
+        description="認証済みユーザー自身の詳細情報を取得",
         responses={
             200: PrivateUserResponseSerializer,
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer
-        }
+        },
+        tags=['Users']
     )
     def get(self, request):
         """現在のユーザー情報を取得"""
@@ -342,13 +360,16 @@ class CurrentUserView(APIView):
         return ResponseFormatter.success(data={'user': serializer.data})
     
     @extend_schema(
+        summary="ユーザー情報更新", 
+        description="認証済みユーザー自身の情報を部分更新", 
         request=UpdateUserSerializer,
         responses={
             200: UpdateUserResponseSerializer,
             422: FailResponseSerializer,
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer
-        }
+        },
+        tags=['Users']
     )
 
     def patch(self, request):
@@ -384,10 +405,13 @@ class VerifyTokenView(APIView):
     permission_classes = [AllowAny]
     
     @extend_schema(
+        summary="トークン検証",
+        description="アクセストークンの有効性を検証",
         responses={
             200: VerifyTokenSuccessResponseSerializer,
             401: ErrorResponseSerializer
-        }
+        },
+        tags=['Authentication']
     )
     def get(self, request):
         access_token = request.COOKIES.get(settings.AUTH_COOKIE_ACCESS_TOKEN)

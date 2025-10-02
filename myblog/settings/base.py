@@ -388,6 +388,16 @@ SPECTACULAR_SETTINGS = {
     'POSTPROCESSING_HOOKS': [
         'drf_spectacular.contrib.djangorestframework_camel_case.camelize_serializer_fields'
     ],
+
+    'TAGS': [
+        {'name': 'Authentication', 'description': '認証・認可関連'},
+        {'name': 'Users', 'description': 'ユーザー情報関連'},
+        {'name': 'Posts', 'description': 'ブログ記事関連'},
+        {'name': 'Categories', 'description': 'カテゴリー関連'},
+    ],
+
+     # タグの自動ソートを無効化
+    'SORT_TAGS': False
 }
 
 # CORS設定
