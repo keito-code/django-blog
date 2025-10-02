@@ -111,3 +111,77 @@ class PostUpdateSerializer(serializers.ModelSerializer):
             if data['title'] == data['content']:
                 raise serializers.ValidationError("タイトルと本文に同じ内容は設定できません")
         return data
+
+# ========================================
+# JSendレスポンス用Serializer
+# ========================================
+
+class PaginationSerializer(serializers.Serializer):
+    count = serializers.IntegerField(read_only=True)
+    total_pages = serializers.IntegerField(read_only=True)
+    current_page = serializers.IntegerField(read_only=True)
+    page_size = serializers.IntegerField(read_only=True)
+    next = serializers.CharField(allow_null=True, read_only=True)
+    previous = serializers.CharField(allow_null=True, read_only=True)
+
+class PostListDataSerializer(serializers.Serializer):
+    posts = PostListSerializer(many=True, read_only=True)
+    pagination = PaginationSerializer(read_only=True)
+
+class PostListResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(default='success', read_only=True)
+    data = PostListDataSerializer(read_only=True)
+
+class PostDetailDataSerializer(serializers.Serializer):
+    post = PostDetailSerializer(read_only=True)
+
+class PostDetailResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(default='success', read_only=True)
+    data = PostDetailDataSerializer(read_only=True)
+
+class PostCreateResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(default='success', read_only=True)
+    data = PostDetailDataSerializer(read_only=True)
+
+class PostUpdateResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(default='success', read_only=True)
+    data = PostDetailDataSerializer(read_only=True)
+
+class PostDeleteResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(default='success', read_only=True)
+    data = serializers.JSONField(default=None, allow_null=True, read_only=True)
+
+class CategoryListDataSerializer(serializers.Serializer):
+    categories = CategorySerializer(many=True, read_only=True)
+
+class CategoryListResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(default='success', read_only=True)
+    data = CategoryListDataSerializer(read_only=True)
+
+class CategoryDetailDataSerializer(serializers.Serializer):
+    category = CategorySerializer(read_only=True)
+
+class CategoryDetailResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(default='success', read_only=True)
+    data = CategoryDetailDataSerializer(read_only=True)
+
+class CategoryCreateResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(default='success', read_only=True)
+    data = CategoryDetailDataSerializer(read_only=True)
+
+class CategoryUpdateResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(default='success', read_only=True)
+    data = CategoryDetailDataSerializer(read_only=True)
+
+class CategoryDeleteResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(default='success', read_only=True)
+    data = serializers.JSONField(default=None, allow_null=True, read_only=True)
+
+class CategoryPostsResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(default='success', read_only=True)
+    data = PostListDataSerializer(read_only=True)
+
+class UserPostListResponseSerializer(serializers.Serializer):
+    """ユーザーの投稿一覧レスポンス用Serializer"""
+    status = serializers.CharField(default='success', read_only=True)
+    data = PostListDataSerializer(read_only=True)

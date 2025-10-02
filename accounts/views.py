@@ -16,6 +16,11 @@ from drf_spectacular.utils import extend_schema
 from .services import AuthService, UserService
 from core.responses import ResponseFormatter
 from rest_framework.generics import GenericAPIView
+from core.serializers import (
+    SuccessResponseSerializer,
+    FailResponseSerializer,
+    ErrorResponseSerializer  
+)
 from .serializers import (
     LoginSerializer,
     LoginSuccessResponseSerializer,
@@ -29,10 +34,7 @@ from .serializers import (
     PrivateUserSerializer,
     UpdateUserSerializer,
     AdminUserSerializer,
-    AdminUpdateUserSerializer,
-    SuccessResponseSerializer,
-    FailResponseSerializer,
-    ErrorResponseSerializer
+    AdminUpdateUserSerializer
 )
 
 User = get_user_model()

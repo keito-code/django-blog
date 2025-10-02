@@ -6,18 +6,101 @@ from django.db.models import Q, Count
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from core.responses import ResponseFormatter
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from .mixins import JSendResponseMixin
 from .models import Post, Category
+from .permissions import IsAuthorOrReadOnly
+from .pagination import CustomPageNumberPagination
+from core.serializers import (
+    SuccessResponseSerializer,
+    FailResponseSerializer,
+    ErrorResponseSerializer  
+)
 from .serializers import (
+    # Model Serializers
     PostListSerializer,
     PostDetailSerializer,
     PostCreateSerializer,
     PostUpdateSerializer,
-    CategorySerializer
+    CategorySerializer,
+    # Response Serializers
+    PostListResponseSerializer,
+    PostDetailResponseSerializer,
+    PostCreateResponseSerializer,
+    PostUpdateResponseSerializer,
+    CategoryListResponseSerializer,
+    CategoryDetailResponseSerializer,
+    CategoryCreateResponseSerializer,
+    CategoryUpdateResponseSerializer,
+    CategoryPostsResponseSerializer,
+    UserPostListResponseSerializer,
 )
-from .permissions import IsAuthorOrReadOnly
-from .pagination import CustomPageNumberPagination
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="記事一覧取得",
+        description="公開された記事の一覧を取得。認証済みユーザーは自分の下書きも取得可能",
+        responses={
+            200: PostListResponseSerializer,
+            400: FailResponseSerializer
+        },
+        tags=['Posts']
+    ),
+    create=extend_schema(
+        summary="記事作成",
+        description="新しい記事を作成（要認証）",
+        request=PostCreateSerializer,
+        responses={
+            201: PostCreateResponseSerializer,
+            400: FailResponseSerializer,
+            401: ErrorResponseSerializer
+        },
+        tags=['Posts']
+    ),
+    retrieve=extend_schema(
+        summary="記事詳細取得",
+        description="指定されたスラッグの記事詳細を取得",
+        responses={
+            200: PostDetailResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Posts']
+    ),
+    update=extend_schema(
+        summary="記事更新（全体）",
+        description="記事を更新（作者のみ）",
+        request=PostUpdateSerializer,
+        responses={
+            200: PostUpdateResponseSerializer,
+            400: FailResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Posts']
+    ),
+    partial_update=extend_schema(
+        summary="記事部分更新",
+        description="記事を部分更新（作者のみ）。status変更で公開/下書き切り替え可能",
+        request=PostUpdateSerializer,
+        responses={
+            200: PostUpdateResponseSerializer,
+            400: FailResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Posts']
+    ),
+    destroy=extend_schema(
+        summary="記事削除",
+        description="記事を削除（作者のみ）",
+        responses={
+            204: SuccessResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Posts']
+    )
+)
 
 class PostViewSet(JSendResponseMixin, viewsets.ModelViewSet):
     """
@@ -107,6 +190,16 @@ class PostViewSet(JSendResponseMixin, viewsets.ModelViewSet):
             self.resource_name_singular: serializer.data
         })
 
+@extend_schema(
+    summary="ユーザーの投稿一覧",
+    description="認証済みユーザー自身の投稿一覧を取得",
+    responses={
+        200: UserPostListResponseSerializer,
+        401: ErrorResponseSerializer
+    },
+    tags=['Posts']
+)
+
 class UserPostListView(generics.ListAPIView):
     """
     ユーザーの投稿一覧
@@ -127,6 +220,79 @@ class UserPostListView(generics.ListAPIView):
             author=self.request.user
         ).select_related('author', 'category')
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="カテゴリー一覧取得",
+        description="すべてのカテゴリー一覧を取得（公開記事数付き）",
+        responses={
+            200: CategoryListResponseSerializer
+        },
+        tags=['Categories']
+    ),
+    create=extend_schema(
+        summary="カテゴリー作成",
+        description="新しいカテゴリーを作成（管理者のみ）",
+        request=CategorySerializer,
+        responses={
+            201: CategoryCreateResponseSerializer,
+            400: FailResponseSerializer,
+            403: ErrorResponseSerializer
+        },
+        tags=['Categories']
+    ),
+    retrieve=extend_schema(
+        summary="カテゴリー詳細取得",
+        description="指定されたスラッグのカテゴリー詳細を取得",
+        responses={
+            200: CategoryDetailResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Categories']
+    ),
+    update=extend_schema(
+        summary="カテゴリー更新（全体）",
+        description="カテゴリーを更新（管理者のみ）",
+        request=CategorySerializer,
+        responses={
+            200: CategoryUpdateResponseSerializer,
+            400: FailResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Categories']
+    ),
+    partial_update=extend_schema(
+        summary="カテゴリー部分更新",
+        description="カテゴリーを部分更新（管理者のみ）",
+        request=CategorySerializer,
+        responses={
+            200: CategoryUpdateResponseSerializer,
+            400: FailResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Categories']
+    ),
+    destroy=extend_schema(
+        summary="カテゴリー削除",
+        description="カテゴリーを削除（管理者のみ）",
+        responses={
+            204: SuccessResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Categories']
+    ),
+    posts=extend_schema(
+        summary="カテゴリーの投稿一覧",
+        description="指定されたカテゴリーに属する公開記事一覧を取得",
+        responses={
+            200: CategoryPostsResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Categories']
+    )
+)
 
 class CategoryViewSet(JSendResponseMixin, viewsets.ModelViewSet):
     """
