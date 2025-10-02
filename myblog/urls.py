@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView
 from myblog.views import RelaxedSpectacularSwaggerView, RelaxedSpectacularRedocView, HomeView
+from core.responses import ResponseFormatter
 
 
 urlpatterns = [
@@ -26,3 +27,53 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# ===============================
+# カスタムエラーハンドラー
+# ===============================
+
+def custom_404_handler(request, exception=None):
+    """URLルーティングエラー（存在しないエンドポイント）"""
+    return ResponseFormatter.not_found(
+        message=f"Endpoint not found: {request.path}"
+    )
+
+
+def custom_500_handler(request):
+    """サーバーエラー（DRF外での予期しないエラー）"""
+    return ResponseFormatter.server_error(
+        message="Internal server error occurred"
+    )
+
+
+def custom_403_handler(request, exception=None):
+    """権限エラー（Django層でのアクセス拒否）"""
+    return ResponseFormatter.forbidden(
+        message="Permission denied"
+    )
+
+
+def custom_400_handler(request, exception=None):
+    """不正なリクエスト（URLパースエラー等）"""
+    return ResponseFormatter.error(
+        message="Bad request",
+        code="BAD_REQUEST",
+        status_code=400
+    )
+
+
+def csrf_failure_handler(request, reason=""):
+    """
+    CSRF検証失敗時のハンドラー
+    Django層で発生するため、ここで処理
+    """
+    return ResponseFormatter.forbidden(
+        message=f"CSRF verification failed: {reason}"
+    )
+
+
+# Djangoのデフォルトハンドラーを上書き
+handler400 = custom_400_handler
+handler403 = custom_403_handler
+handler404 = custom_404_handler
+handler500 = custom_500_handler

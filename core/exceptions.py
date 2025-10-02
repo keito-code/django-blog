@@ -14,27 +14,33 @@ logger = logging.getLogger(__name__)
 def custom_exception_handler(exc, context):
     """
     DRF例外を JSend形式 に統一する。
-    fail: クライアント起因のエラー
-    error: サーバー起因のエラー
+    fail: データ検証エラーのみ(422)
+    error: システムエラー・処理エラー(401,403,404,405,429,500等)
     """
 
-    # "fail" に分類する例外をまとめて処理
-    if isinstance(exc, (ValidationError, ParseError, MethodNotAllowed, Throttled)):
+    # "fail" に分類する例外(データ検証エラーのみ)
+    if isinstance(exc, (ValidationError, ParseError)):
         
         # ValidationErrorは詳細なエラーdictをそのままdataとして使用
         if isinstance(exc, ValidationError):
             return ResponseFormatter.validation_error(data=exc.detail)
 
-        # その他のfail系は、エラー詳細を'detail'キーに格納して統一
-        detail_message = str(exc.detail) if hasattr(exc, 'detail') else str(exc)
-        fail_data = {'detail': detail_message}
-
+        # ParseErrorもfailとして扱う（JSONパースエラー等）
         if isinstance(exc, ParseError):
-            return ResponseFormatter.fail(data=fail_data, status_code=400)
-        if isinstance(exc, MethodNotAllowed):
-            return ResponseFormatter.method_not_allowed(data=fail_data)
-        if isinstance(exc, Throttled):
-            return ResponseFormatter.too_many_requests(data=fail_data)
+            detail_message = str(exc.detail) if hasattr(exc, 'detail') else str(exc)
+            return ResponseFormatter.fail(
+                data={'detail': detail_message}, 
+                status_code=400
+            )
+
+    # "error" に分類する例外（システムエラー）
+    if isinstance(exc, MethodNotAllowed):
+        detail_message = str(exc.detail) if hasattr(exc, 'detail') else "Method not allowed"
+        return ResponseFormatter.method_not_allowed(message=detail_message)
+    
+    if isinstance(exc, Throttled):
+        detail_message = str(exc.detail) if hasattr(exc, 'detail') else "Too many requests"
+        return ResponseFormatter.too_many_requests(message=detail_message)
 
     # 上記以外はDRFのデフォルトハンドラを呼び出す
     response = exception_handler(exc, context)
