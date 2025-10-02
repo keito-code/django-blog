@@ -42,7 +42,7 @@ from .serializers import (
         description="公開された記事の一覧を取得。認証済みユーザーは自分の下書きも取得可能",
         responses={
             200: PostListResponseSerializer,
-            400: FailResponseSerializer
+            422: FailResponseSerializer
         },
         tags=['Posts']
     ),
@@ -52,8 +52,8 @@ from .serializers import (
         request=PostCreateSerializer,
         responses={
             201: PostCreateResponseSerializer,
-            400: FailResponseSerializer,
-            401: ErrorResponseSerializer
+            401: ErrorResponseSerializer,
+            422: FailResponseSerializer,
         },
         tags=['Posts']
     ),
@@ -72,9 +72,9 @@ from .serializers import (
         request=PostUpdateSerializer,
         responses={
             200: PostUpdateResponseSerializer,
-            400: FailResponseSerializer,
             403: ErrorResponseSerializer,
-            404: ErrorResponseSerializer
+            404: ErrorResponseSerializer,
+            422: FailResponseSerializer,
         },
         tags=['Posts']
     ),
@@ -84,9 +84,9 @@ from .serializers import (
         request=PostUpdateSerializer,
         responses={
             200: PostUpdateResponseSerializer,
-            400: FailResponseSerializer,
             403: ErrorResponseSerializer,
-            404: ErrorResponseSerializer
+            404: ErrorResponseSerializer,
+            422: FailResponseSerializer,
         },
         tags=['Posts']
     ),
@@ -94,7 +94,7 @@ from .serializers import (
         summary="記事削除",
         description="記事を削除（作者のみ）",
         responses={
-            204: SuccessResponseSerializer,
+            200: SuccessResponseSerializer,
             403: ErrorResponseSerializer,
             404: ErrorResponseSerializer
         },
@@ -173,8 +173,8 @@ class PostViewSet(JSendResponseMixin, viewsets.ModelViewSet):
             
             # バリデーション
             if new_status not in ['draft', 'published']:
-                raise ValidationError({
-                    'status': '有効なステータスは "draft" または "published" です'
+                return ResponseFormatter.validation_error({
+                    'status': ['有効なステータスは "draft" または "published" です']
                 })
                         
             # 同じステータスならフィールドを無視
@@ -235,8 +235,8 @@ class UserPostListView(generics.ListAPIView):
         request=CategorySerializer,
         responses={
             201: CategoryCreateResponseSerializer,
-            400: FailResponseSerializer,
-            403: ErrorResponseSerializer
+            403: ErrorResponseSerializer,
+            422: FailResponseSerializer,
         },
         tags=['Categories']
     ),
@@ -255,9 +255,9 @@ class UserPostListView(generics.ListAPIView):
         request=CategorySerializer,
         responses={
             200: CategoryUpdateResponseSerializer,
-            400: FailResponseSerializer,
             403: ErrorResponseSerializer,
-            404: ErrorResponseSerializer
+            404: ErrorResponseSerializer,
+            422: FailResponseSerializer,
         },
         tags=['Categories']
     ),
@@ -267,9 +267,9 @@ class UserPostListView(generics.ListAPIView):
         request=CategorySerializer,
         responses={
             200: CategoryUpdateResponseSerializer,
-            400: FailResponseSerializer,
             403: ErrorResponseSerializer,
-            404: ErrorResponseSerializer
+            404: ErrorResponseSerializer,
+            422: FailResponseSerializer,
         },
         tags=['Categories']
     ),
@@ -277,7 +277,7 @@ class UserPostListView(generics.ListAPIView):
         summary="カテゴリー削除",
         description="カテゴリーを削除（管理者のみ）",
         responses={
-            204: SuccessResponseSerializer,
+            200: SuccessResponseSerializer,
             403: ErrorResponseSerializer,
             404: ErrorResponseSerializer
         },
