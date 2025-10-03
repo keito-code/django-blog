@@ -4,7 +4,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView
 from myblog.views import RelaxedSpectacularSwaggerView, RelaxedSpectacularRedocView, HomeView
-from core.responses import ResponseFormatter
+from django.http import JsonResponse
+from djangorestframework_camel_case.util import camelize
 
 
 urlpatterns = [
@@ -29,46 +30,69 @@ if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 # ===============================
-# カスタムエラーハンドラー
+# 統一エラーハンドラー（Django層）
+# JSend形式 + CamelCase変換
 # ===============================
+
+def create_error_response(message, code=None, status_code=500):
+    """
+    統一されたエラーレスポンスを生成
+    JSend形式でCamelCase変換を適用
+    """
+    response_data = {
+        'status': 'error',
+        'message': message
+    }
+    if code:
+        response_data['code'] = code
+    
+    # CamelCase変換を適用（Next.jsとの統一性のため）
+    camelized_data = camelize(response_data)
+    
+    return JsonResponse(camelized_data, status=status_code)
 
 def custom_404_handler(request, exception=None):
     """URLルーティングエラー（存在しないエンドポイント）"""
-    return ResponseFormatter.not_found(
-        message=f"Endpoint not found: {request.path}"
+    return create_error_response(
+        message=f'Endpoint not found: {request.path}',
+        code='NOT_FOUND',
+        status_code=404
     )
 
 
 def custom_500_handler(request):
-    """サーバーエラー（DRF外での予期しないエラー）"""
-    return ResponseFormatter.server_error(
-        message="Internal server error occurred"
+    """サーバーエラー(DRF外での予期しないエラー)"""
+    return create_error_response(
+        message='Internal server error occurred',
+        code='SERVER_ERROR',
+        status_code=500
     )
 
 
 def custom_403_handler(request, exception=None):
     """権限エラー（Django層でのアクセス拒否）"""
-    return ResponseFormatter.forbidden(
-        message="Permission denied"
+    return create_error_response(
+        message='Permission denied',
+        code='FORBIDDEN',
+        status_code=403
     )
 
 
 def custom_400_handler(request, exception=None):
     """不正なリクエスト（URLパースエラー等）"""
-    return ResponseFormatter.error(
-        message="Bad request",
-        code="BAD_REQUEST",
+    return create_error_response(
+        message='Bad request',
+        code='BAD_REQUEST',
         status_code=400
     )
 
 
 def csrf_failure_handler(request, reason=""):
-    """
-    CSRF検証失敗時のハンドラー
-    Django層で発生するため、ここで処理
-    """
-    return ResponseFormatter.forbidden(
-        message=f"CSRF verification failed: {reason}"
+    """CSRF検証失敗時のハンドラー"""
+    return create_error_response(
+        message=f'CSRF verification failed: {reason}',
+        code='CSRF_FAILED',
+        status_code=403
     )
 
 
