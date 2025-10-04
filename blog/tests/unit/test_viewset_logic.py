@@ -1,7 +1,5 @@
 import pytest
 from unittest.mock import Mock, patch
-from rest_framework.exceptions import ValidationError
-from rest_framework import viewsets
 from blog.api_views import PostViewSet
 
 class TestPostViewSetLogic:
@@ -172,8 +170,8 @@ class TestPostViewSetLogic:
         mock_serializer.is_valid.assert_called_once_with(raise_exception=True)
         viewset.perform_update.assert_called_once_with(mock_serializer)
 
-    def test_partial_update_invalid_status_raises_error(self):
-        """不正なstatus値の場合はValidationErrorを発生させる"""
+    def test_partial_update_invalid_status_returns_error(self):
+        """不正なstatus値の場合はバリデーションエラーレスポンスを返す"""
         viewset = PostViewSet()
         viewset.action = 'partial_update'
         
@@ -183,8 +181,11 @@ class TestPostViewSetLogic:
         
         viewset.request = Mock()
         viewset.request.data = {'status': 'invalid_status'}
-        
-        with pytest.raises(ValidationError) as exc_info:
-            viewset.partial_update(viewset.request, slug='test-slug')
-        assert '有効なステータスは "draft" または "published" です' in str(exc_info.value)
-        
+
+        response = viewset.partial_update(viewset.request, slug='test-slug')
+
+        # バリデーションエラーレスポンスの確認
+        assert response.status_code == 422
+        assert response.data['status'] == 'fail'
+        assert 'status' in response.data['data']
+        assert '有効なステータスは "draft" または "published" です' in response.data['data']['status'][0]

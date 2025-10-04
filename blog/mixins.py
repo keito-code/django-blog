@@ -77,7 +77,5 @@ class JSendResponseMixin:
         instance = self.get_object()
         self.perform_destroy(instance)
         
-        # 204ではなく200でメッセージを返す（JSend形式）
-        return ResponseFormatter.success({
-            'message': f'{self.resource_name_singular.capitalize()} deleted successfully'
-        })
+        # 204ではなく200でdata: nullを返す（JSend形式）
+        return ResponseFormatter.success()

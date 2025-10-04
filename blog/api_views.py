@@ -332,14 +332,19 @@ class CategoryViewSet(JSendResponseMixin, viewsets.ModelViewSet):
             category=category,
             status='published'
         ).select_related('author').order_by('-created_at')
-        paginator = CustomPageNumberPagination() # 投稿数が多くなると判断したため
-        page = paginator.paginate_queryset(posts, request)
 
-        if page is not None:
-            serializer = PostListSerializer(page, many=True)
-            return paginator.get_paginated_response(serializer.data)
-        
-        serializer = PostListSerializer(posts, many=True)
-        return ResponseFormatter.success({
-            'posts': serializer.data
-        })
+        original_resource_name = self.resource_name
+        self.resource_name = 'posts'
+        try:
+            paginator = CustomPageNumberPagination()
+            page = paginator.paginate_queryset(posts, request, view=self)
+
+            if page is not None:
+                serializer =PostListSerializer(page, many=True)
+                return paginator.get_paginated_response(serializer.data)
+
+            serializer = PostListSerializer(posts, many=True)
+            return ResponseFormatter.success({'posts': serializer.data})
+        finally:
+            # 例外が起きても確実に戻す
+            self.resource_name = original_resource_name
