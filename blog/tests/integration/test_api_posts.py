@@ -35,13 +35,19 @@ class TestPostAPI:
         assert len(posts) == 1
         assert posts[0]['title'] == 'Test Post'
         assert posts[0]['status'] == 'published'
-    
-    def test_list_posts_authenticated(self, authenticated_client, post, draft_post, other_user):
-        """認証済みユーザーは自分の下書きも閲覧可能"""
-        # 他人の下書きを作成
-        other_draft = Post.objects.create(
+
+    def test_list_posts_only_published_for_all_users(self, authenticated_client, post, draft_post, other_user):
+        """一覧は認証状態に関わらず公開記事のみ表示"""
+        # 他人の公開投稿と下書きを作成
+        Post.objects.create(
+            title='Other Published',
+            content='Content',
+            author=other_user,
+            status='published'
+        )
+        Post.objects.create(
             title='Other Draft',
-            content='Other content',
+            content='Content',
             author=other_user,
             status='draft'
         )
@@ -50,16 +56,26 @@ class TestPostAPI:
         data = to_camel_case(response.data)
         
         assert response.status_code == status.HTTP_200_OK
-        assert data['status'] == 'success'
         
         posts = data['data']['posts']
         titles = [p['title'] for p in posts]
         
-        # 公開記事と自分の下書きは見える
+        # 公開記事のみ表示
         assert 'Test Post' in titles
-        assert 'Draft Post' in titles
-        # 他人の下書きは見えない
+        assert 'Other Published' in titles
+        # すべての下書きは見えない（自分も他人も）
+        assert 'Draft Post' not in titles
         assert 'Other Draft' not in titles
+
+    def test_can_retrieve_own_draft_directly(self, authenticated_client, draft_post):
+        """直接URLアクセスでは自分の下書きを閲覧可能"""
+        response = authenticated_client.get(f'/v1/posts/{draft_post.slug}/')
+        data = to_camel_case(response.data)
+        
+        assert response.status_code == status.HTTP_200_OK
+        assert data['data']['post']['title'] == 'Draft Post'
+        assert data['data']['post']['status'] == 'draft'
+    
     
     def test_create_post_without_auth(self, api_client, create_post_data):
         """未認証ユーザーは投稿作成不可"""

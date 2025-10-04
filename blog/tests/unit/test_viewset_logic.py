@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import Mock, patch
 from blog.api_views import PostViewSet
+from blog.serializers import PostListSerializer, PostCreateSerializer, PostUpdateSerializer
 
 class TestPostViewSetLogic:
     """PostViewSetのロジックのユニットテスト（DB不使用）"""
@@ -10,7 +11,6 @@ class TestPostViewSetLogic:
         viewset = PostViewSet()
         viewset.action = 'list'
         
-        from blog.serializers import PostListSerializer
         assert viewset.get_serializer_class() == PostListSerializer
     
     def test_get_serializer_class_for_create(self):
@@ -18,7 +18,6 @@ class TestPostViewSetLogic:
         viewset = PostViewSet()
         viewset.action = 'create'
         
-        from blog.serializers import PostCreateSerializer
         assert viewset.get_serializer_class() == PostCreateSerializer
     
     def test_get_serializer_class_for_update(self):
@@ -26,27 +25,63 @@ class TestPostViewSetLogic:
         viewset = PostViewSet()
         viewset.action = 'update'
         
-        from blog.serializers import PostUpdateSerializer
         assert viewset.get_serializer_class() == PostUpdateSerializer
-    
+
     @patch('blog.api_views.Post.objects')
-    def test_get_queryset_authenticated(self, mock_post_objects):
-        """認証済みユーザーのクエリセット"""
+    def test_get_queryset_list_action(self, mock_post_objects):
+        """listアクションでは認証に関わらず公開済み投稿のみ取得"""
         viewset = PostViewSet()
+        viewset.action = 'list'
         viewset.request = Mock()
         viewset.request.user = Mock()
         viewset.request.user.is_authenticated = True
-        viewset.request.user.id = 1
         
         mock_queryset = Mock()
-        mock_queryset.select_related.return_value.filter.return_value.distinct.return_value = mock_queryset
         mock_post_objects.select_related.return_value = mock_queryset
+        mock_queryset.filter.return_value = mock_queryset
         
-        result = viewset.get_queryset()
+        viewset.get_queryset()
         
-        # select_relatedが呼ばれたか確認
         mock_post_objects.select_related.assert_called_once_with('author', 'category')
+        mock_queryset.filter.assert_called_once_with(status='published')
     
+    @patch('blog.api_views.Post.objects')
+    def test_get_queryset_retrieve_authenticated(self, mock_post_objects):
+        """retrieveアクション（認証済み）では公開+自分の投稿を取得"""
+        viewset = PostViewSet()
+        viewset.action = 'retrieve'
+        viewset.request = Mock()
+        viewset.request.user = Mock()
+        viewset.request.user.is_authenticated = True
+        
+        mock_queryset = Mock()
+        mock_post_objects.select_related.return_value = mock_queryset
+        mock_queryset.filter.return_value = mock_queryset
+        
+        viewset.get_queryset()
+        
+        mock_post_objects.select_related.assert_called_once_with('author', 'category')
+        # Q()オブジェクトでフィルタされていることを確認
+        assert mock_queryset.filter.called
+
+    @patch('blog.api_views.Post.objects')
+    def test_get_queryset_retrieve_unauthenticated(self, mock_post_objects):
+        """retrieveアクション（未認証）では公開済みのみ取得"""
+        viewset = PostViewSet()
+        viewset.action = 'retrieve'
+        viewset.request = Mock()
+        viewset.request.user = Mock()
+        viewset.request.user.is_authenticated = False
+        
+        mock_queryset = Mock()
+        mock_post_objects.select_related.return_value = mock_queryset
+        mock_queryset.filter.return_value = mock_queryset
+        
+        viewset.get_queryset()
+        
+        mock_post_objects.select_related.assert_called_once_with('author', 'category')
+        mock_queryset.filter.assert_called_once_with(status='published')
+        
     def test_perform_create(self):
         """作成時に作者を設定"""
         viewset = PostViewSet()

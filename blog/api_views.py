@@ -39,7 +39,7 @@ from .serializers import (
 @extend_schema_view(
     list=extend_schema(
         summary="記事一覧取得",
-        description="公開された記事の一覧を取得。認証済みユーザーは自分の下書きも取得可能",
+        description="公開された記事の一覧を取得",
         responses={
             200: PostListResponseSerializer,
             422: FailResponseSerializer
@@ -59,7 +59,7 @@ from .serializers import (
     ),
     retrieve=extend_schema(
         summary="記事詳細取得",
-        description="指定されたスラッグの記事詳細を取得",
+        description="指定されたスラッグの記事詳細を取得。作者は自分の下書きも閲覧可能",
         responses={
             200: PostDetailResponseSerializer,
             404: ErrorResponseSerializer
@@ -128,16 +128,21 @@ class PostViewSet(JSendResponseMixin, viewsets.ModelViewSet):
     lookup_field = 'slug'
     
     def get_queryset(self):
-        """認証状態に応じたクエリセット"""
         queryset = Post.objects.select_related('author', 'category')
-        
+
+        # 一覧: 公開のみ
+        if self.action == 'list':
+            return queryset.filter(status='published')
+
+        # 詳細/編集: 公開 + 自分の下書き
         if self.request.user.is_authenticated:
             return queryset.filter(
                 Q(status='published') | Q(author=self.request.user)
-            ).distinct()
-        else:
-            return queryset.filter(status='published')
+            )
     
+        # 未認証: 公開のみ
+        return queryset.filter(status='published')
+
     def get_serializer_class(self):
         """アクションに応じたシリアライザー選択"""
         if self.action == 'list':
