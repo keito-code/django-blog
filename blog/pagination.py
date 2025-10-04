@@ -14,6 +14,10 @@ class CustomPageNumberPagination(PageNumberPagination):
         # ViewSetからリソース名を取得（デフォルト: 'results'）
         view = self.request.parser_context.get('view') if hasattr(self.request, 'parser_context') else None
         resource_name = getattr(view, 'resource_name', 'results') if view else 'results'
+
+        # 実際に使用されたページサイズを取得
+        # self.page.paginator.per_pageが実際のページサイズ
+        actual_page_size = self.page.paginator.per_page
         
         # JSend形式でラップ
         return ResponseFormatter.success({
@@ -21,7 +25,7 @@ class CustomPageNumberPagination(PageNumberPagination):
             'pagination': {
                 'count': self.page.paginator.count,
                 'page': self.page.number,
-                'pageSize': self.page_size if self.page_size else self.page.paginator.per_page,
+                'pageSize': actual_page_size,
                 'totalPages': self.page.paginator.num_pages,
                 'next': self.get_next_link(),
                 'previous': self.get_previous_link()

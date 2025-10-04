@@ -159,7 +159,7 @@ class TestUserPostsAPI:
         assert len(data['data']['posts']) == 5
         assert data['data']['pagination']['count'] == 15
         assert data['data']['pagination']['totalPages'] == 3
-        assert data['data']['pagination']['currentPage'] == 1
+        assert data['data']['pagination']['page'] == 1
         assert data['data']['pagination']['pageSize'] == 5
         assert data['data']['pagination']['next'] is not None
         assert data['data']['pagination']['previous'] is None
@@ -169,7 +169,7 @@ class TestUserPostsAPI:
         data = to_camel_case(response.data)
         
         assert len(data['data']['posts']) == 5
-        assert data['data']['pagination']['currentPage'] == 2
+        assert data['data']['pagination']['page'] == 2
         assert data['data']['pagination']['previous'] is not None
         assert data['data']['pagination']['next'] is not None
     
