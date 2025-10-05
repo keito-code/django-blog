@@ -197,25 +197,20 @@ LOGIN_REDIRECT_URL = '/blog/'
 LOGOUT_REDIRECT_URL = '/blog/'
 
 # セキュリティ設定
+X_FRAME_OPTIONS = 'DENY'  # iframe内での表示を完全禁止（クリックジャッキング対策）
+SECURE_CONTENT_TYPE_NOSNIFF = True  # IEのコンテンツ自動判定を無効化（MIME詐称防止）
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'  # リファラーポリシー
+SESSION_COOKIE_HTTPONLY = True  # JavaScriptからセッションCookieへのアクセス禁止（XSS対策）
 if not DEBUG:
-    # セッションクッキーのセキュリティ
     SESSION_COOKIE_SECURE = True  # HTTPS接続でのみ送信
 
-    # クリックジャッキング対策
-    X_FRAME_OPTIONS = 'DENY'  # iframe内での表示を完全禁止
-    
-    # コンテンツタイプの推測を防ぐ
-    SECURE_CONTENT_TYPE_NOSNIFF = True  # IEのコンテンツ自動判定を無効化
-        # HTTPSリダイレクト設定
+    # HTTPSリダイレクト設定
     if os.environ.get('DISABLE_SSL_REDIRECT'):
         # ローカルで本番モードテスト用
         SECURE_SSL_REDIRECT = False
     else:
         # 本番環境のみTrue
         SECURE_SSL_REDIRECT = True
-
-    # リファラーポリシー
-    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
     
     # HSTS (HTTP Strict Transport Security)
     # ブラウザに「このサイトは今後HTTPSでのみアクセスする」と記憶させる
@@ -239,8 +234,6 @@ if not DEBUG:
     # 将来的な追加設定（現在は無効）
     # SECURE_HSTS_INCLUDE_SUBDOMAINS = True  # サブドメインも対象に
     # SECURE_HSTS_PRELOAD = True  # ブラウザのプリロードリストに登録
-
-SESSION_COOKIE_HTTPONLY = True
 
 # django-axes 設定（ブルートフォース対策）
 AXES_FAILURE_LIMIT = 5  # 5回失敗でロック
