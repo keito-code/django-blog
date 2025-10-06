@@ -109,6 +109,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'axes.middleware.AxesMiddleware',
+    'myblog.middleware.CacheControlMiddleware',
 ]
 
 CSRF_FAILURE_VIEW = 'myblog.urls.csrf_failure_handler'
