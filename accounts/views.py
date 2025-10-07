@@ -60,17 +60,9 @@ class CSRFTokenView(APIView):
         response = ResponseFormatter.success(
             data={'csrf_token': csrf_token}
         )
-        
-        # CSRFトークンをCookieに設定
-        response.set_cookie(
-            key=settings.CSRF_COOKIE_NAME,
-            value=csrf_token,
-            max_age=settings.CSRF_COOKIE_AGE,
-            httponly=settings.CSRF_COOKIE_HTTPONLY,
-            secure=settings.CSRF_COOKIE_SECURE,
-            samesite=settings.CSRF_COOKIE_SAMESITE
-        )
-        
+
+        # ensure_csrf_cookieデコレータが自動的にCookieを設定するので
+        # 手動でのset_cookieは不要        
         return response
 
 @method_decorator(csrf_protect, name='dispatch')

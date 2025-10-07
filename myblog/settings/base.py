@@ -40,7 +40,7 @@ API_VERSION = 'v1'
 # Cookie名の定義（フロントエンドと共有する契約値）
 AUTH_COOKIE_ACCESS_TOKEN = 'access_token'
 AUTH_COOKIE_REFRESH_TOKEN = 'refresh_token'
-CSRF_COOKIE_NAME = 'csrf_token'
+CSRF_COOKIE_NAME = 'csrftoken' # Djsngo標準の名前
 
 # JWT Cookie認証設定
 AUTH_COOKIE_HTTPONLY = True  # XSS対策: JSからアクセス不可
