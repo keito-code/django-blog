@@ -1,16 +1,15 @@
 from rest_framework import viewsets, filters, generics
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
-from rest_framework.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count
 from rest_framework.decorators import action
-from rest_framework.response import Response
 from core.responses import ResponseFormatter
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from .mixins import JSendResponseMixin
 from .models import Post, Category
 from .permissions import IsAuthorOrReadOnly
 from .pagination import CustomPageNumberPagination
+from .schema import JSendAutoSchema
 from core.serializers import (
     SuccessResponseSerializer,
     FailResponseSerializer,
@@ -36,8 +35,15 @@ from .serializers import (
     UserPostListResponseSerializer,
 )
 
+"""
+operation_id を手動指定している理由
+list (GET /v1/posts/) と retrieve (GET /v1/posts/{slug}/) は
+両方とも GET メソッドのため、自動生成では operation_id が衝突するから
+"""
+
 @extend_schema_view(
     list=extend_schema(
+        operation_id='posts_list',
         summary="記事一覧取得",
         description="公開された記事の一覧を取得",
         responses={
@@ -47,6 +53,7 @@ from .serializers import (
         tags=['Posts']
     ),
     create=extend_schema(
+        operation_id='posts_create',
         summary="記事作成",
         description="新しい記事を作成（要認証）",
         request=PostCreateSerializer,
@@ -58,6 +65,7 @@ from .serializers import (
         tags=['Posts']
     ),
     retrieve=extend_schema(
+        operation_id='posts_retrieve',
         summary="記事詳細取得",
         description="指定されたスラッグの記事詳細を取得。作者は自分の下書きも閲覧可能",
         responses={
@@ -67,6 +75,7 @@ from .serializers import (
         tags=['Posts']
     ),
     update=extend_schema(
+        operation_id='posts_update',
         summary="記事更新（全体）",
         description="記事を更新（作者のみ）",
         request=PostUpdateSerializer,
@@ -79,6 +88,7 @@ from .serializers import (
         tags=['Posts']
     ),
     partial_update=extend_schema(
+        operation_id='posts_partial_update',
         summary="記事部分更新",
         description="記事を部分更新（作者のみ）。status変更で公開/下書き切り替え可能",
         request=PostUpdateSerializer,
@@ -91,6 +101,7 @@ from .serializers import (
         tags=['Posts']
     ),
     destroy=extend_schema(
+        operation_id='posts_destroy',
         summary="記事削除",
         description="記事を削除（作者のみ）",
         responses={
@@ -114,10 +125,9 @@ class PostViewSet(JSendResponseMixin, viewsets.ModelViewSet):
     - DELETE /v1/posts/{slug}/ - 記事削除（作者のみ）
     """
 
-    # リソース名を定義
+    schema = JSendAutoSchema()
     resource_name = 'posts'
     resource_name_singular = 'post'
-    
     permission_classes = [IsAuthorOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'author', 'category']
@@ -195,6 +205,12 @@ class PostViewSet(JSendResponseMixin, viewsets.ModelViewSet):
             self.resource_name_singular: serializer.data
         })
 
+"""
+generics.ListAPIView に @extend_schema をクラスの前に配置する場合、
+operation_id を指定すると drf-spectacular が内部の get() メソッドと
+二重解釈してエラーが発生する。そのため operation_id は指定せず自動生成に任せる。
+"""
+
 @extend_schema(
     summary="ユーザーの投稿一覧",
     description="認証済みユーザー自身の投稿一覧を取得",
@@ -210,6 +226,7 @@ class UserPostListView(generics.ListAPIView):
     ユーザーの投稿一覧
     GET /v1/users/me/posts/
     """
+    schema = JSendAutoSchema()
     serializer_class = PostListSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = CustomPageNumberPagination
@@ -218,7 +235,7 @@ class UserPostListView(generics.ListAPIView):
 
     # リソース名を定義（ページネーション用）
     resource_name = 'posts'
-    
+
     def get_queryset(self):
         """現在のユーザーの投稿を返す"""
         return Post.objects.filter(
@@ -227,6 +244,7 @@ class UserPostListView(generics.ListAPIView):
 
 @extend_schema_view(
     list=extend_schema(
+        operation_id='categories_list',
         summary="カテゴリー一覧取得",
         description="すべてのカテゴリー一覧を取得（公開記事数付き）",
         responses={
@@ -235,6 +253,7 @@ class UserPostListView(generics.ListAPIView):
         tags=['Categories']
     ),
     create=extend_schema(
+        operation_id='categories_create',
         summary="カテゴリー作成",
         description="新しいカテゴリーを作成（管理者のみ）",
         request=CategorySerializer,
@@ -246,6 +265,7 @@ class UserPostListView(generics.ListAPIView):
         tags=['Categories']
     ),
     retrieve=extend_schema(
+        operation_id='categories_retrieve',
         summary="カテゴリー詳細取得",
         description="指定されたスラッグのカテゴリー詳細を取得",
         responses={
@@ -255,6 +275,7 @@ class UserPostListView(generics.ListAPIView):
         tags=['Categories']
     ),
     update=extend_schema(
+        operation_id='categories_update',
         summary="カテゴリー更新（全体）",
         description="カテゴリーを更新（管理者のみ）",
         request=CategorySerializer,
@@ -267,6 +288,7 @@ class UserPostListView(generics.ListAPIView):
         tags=['Categories']
     ),
     partial_update=extend_schema(
+        operation_id='categories_partial_update',
         summary="カテゴリー部分更新",
         description="カテゴリーを部分更新（管理者のみ）",
         request=CategorySerializer,
@@ -279,6 +301,7 @@ class UserPostListView(generics.ListAPIView):
         tags=['Categories']
     ),
     destroy=extend_schema(
+        operation_id='categories_destroy',
         summary="カテゴリー削除",
         description="カテゴリーを削除（管理者のみ）",
         responses={
@@ -289,6 +312,7 @@ class UserPostListView(generics.ListAPIView):
         tags=['Categories']
     ),
     posts=extend_schema(
+        operation_id='categories_posts_list',
         summary="カテゴリーの投稿一覧",
         description="指定されたカテゴリーに属する公開記事一覧を取得",
         responses={

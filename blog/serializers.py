@@ -118,9 +118,9 @@ class PostUpdateSerializer(serializers.ModelSerializer):
 
 class PaginationSerializer(serializers.Serializer):
     count = serializers.IntegerField(read_only=True)
-    total_pages = serializers.IntegerField(read_only=True)
-    current_page = serializers.IntegerField(read_only=True)
+    page = serializers.IntegerField(read_only=True)
     page_size = serializers.IntegerField(read_only=True)
+    total_pages = serializers.IntegerField(read_only=True)
     next = serializers.CharField(allow_null=True, read_only=True)
     previous = serializers.CharField(allow_null=True, read_only=True)
 
