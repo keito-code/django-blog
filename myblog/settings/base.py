@@ -213,28 +213,12 @@ if not DEBUG:
         # 本番環境のみTrue
         SECURE_SSL_REDIRECT = True
     
-    # HSTS (HTTP Strict Transport Security)
-    # ブラウザに「このサイトは今後HTTPSでのみアクセスする」と記憶させる
-    # 段階的に期間を延長することで、設定ミスのリスクを最小化
-    
-    # SECURE_HSTS_SECONDS = 3600  # 初期設定: 1時間（2025/07/29）
-    
-    # 段階的延長計画：
-    # フェーズ1: 2025/07/30 - 1日に延長（完了）
-    # SECURE_HSTS_SECONDS = 86400  # 24時間
-    
-    # フェーズ2: 2025/08/08 - 1週間に延長予定
-    SECURE_HSTS_SECONDS = 604800  # 7日間
-    
-    # フェーズ3: 2025/08/15 - 1ヶ月に延長予定
-    # SECURE_HSTS_SECONDS = 2592000  # 30日間
-    
-    # フェーズ4: 2025/09/15 - 1年に延長予定（最終目標）
-    # SECURE_HSTS_SECONDS = 31536000  # 365日間
-    
-    # 将来的な追加設定（現在は無効）
-    # SECURE_HSTS_INCLUDE_SUBDOMAINS = True  # サブドメインも対象に
-    # SECURE_HSTS_PRELOAD = True  # ブラウザのプリロードリストに登録
+        # HSTS (HTTP Strict Transport Security)
+        # ブラウザに「このサイトは今後HTTPSでのみアクセスする」と記憶させる
+        SECURE_HSTS_SECONDS = 604800  # 7日間
+        # 将来的な追加設定（現在は無効）
+        # SECURE_HSTS_INCLUDE_SUBDOMAINS = True  # サブドメインも対象に
+        # SECURE_HSTS_PRELOAD = True  # ブラウザのプリロードリストに登録
 
 # django-axes 設定（ブルートフォース対策）
 AXES_FAILURE_LIMIT = 5  # 5回失敗でロック
