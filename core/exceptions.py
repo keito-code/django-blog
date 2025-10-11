@@ -1,5 +1,5 @@
+import logging
 from rest_framework.views import exception_handler
-from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from core.responses import ResponseFormatter 
 from rest_framework.exceptions import (
@@ -9,59 +9,62 @@ from rest_framework.exceptions import (
     Throttled
 )
 
+logger = logging.getLogger(__name__)
+
 def custom_exception_handler(exc, context):
     """
-    DRF例外を JSend形式 に統一するカスタムハンドラ
+    DRF例外を JSend形式 に統一する。
+    fail: データ検証エラーのみ(422)
+    error: システムエラー・処理エラー(401,403,404,405,429,500等)
     """
 
-    # バリデーションエラー -> 422
-    if isinstance(exc, ValidationError):
-        return ResponseFormatter.validation_error(exc.detail)
+    # "fail" に分類する例外(データ検証エラーのみ)
+    if isinstance(exc, (ValidationError, ParseError)):
+        
+        # ValidationErrorは詳細なエラーdictをそのままdataとして使用
+        if isinstance(exc, ValidationError):
+            return ResponseFormatter.validation_error(data=exc.detail)
 
-    # JSONパースエラー -> 400
-    if isinstance(exc, ParseError):
-        return ResponseFormatter.fail(
-            data={'detail': str(exc.detail)},
-            status_code=400
-        )
+        # ParseErrorもfailとして扱う（JSONパースエラー等）
+        if isinstance(exc, ParseError):
+            detail_message = str(exc.detail) if hasattr(exc, 'detail') else str(exc)
+            return ResponseFormatter.fail(
+                data={'detail': detail_message}, 
+                status_code=400
+            )
 
-    # メソッド不許可 -> 405
+    # "error" に分類する例外（システムエラー）
     if isinstance(exc, MethodNotAllowed):
-        return ResponseFormatter.method_not_allowed(
-            str(exc.detail) if hasattr(exc, 'detail') else 'Method not allowed'
-        )
-
-    # レート制限 -> 429
+        detail_message = str(exc.detail) if hasattr(exc, 'detail') else "Method not allowed"
+        return ResponseFormatter.method_not_allowed(message=detail_message)
+    
     if isinstance(exc, Throttled):
-        return ResponseFormatter.too_many_requests(
-            str(exc.detail) if hasattr(exc, 'detail') else 'Too many requests'
-        )
+        detail_message = str(exc.detail) if hasattr(exc, 'detail') else "Too many requests"
+        return ResponseFormatter.too_many_requests(message=detail_message)
 
-    # 上記以外の場合、DRFのデフォルトハンドラを呼び出す
+    # 上記以外はDRFのデフォルトハンドラを呼び出す
     response = exception_handler(exc, context)
 
     # DRFが処理できない例外をここで処理
-    if response is None:
-        if isinstance(exc, PermissionDenied):
-            return ResponseFormatter.forbidden(str(exc) or "Permission denied.")
-        
+    if response is None:        
         if isinstance(exc, Http404):
-            return ResponseFormatter.not_found(str(exc) or "Resource not found.")
+            return ResponseFormatter.not_found() # デフォルトメッセージを使用
         
         # 予期せぬエラーは500として返す
+        logger.exception(exc)
         return ResponseFormatter.server_error() 
 
     # その他のDRFエラーをカスタム形式に変換
     detail = response.data.get('detail', None)
 
     if response.status_code == 401:
-        return ResponseFormatter.unauthorized(detail or "Authentication required.")
+        return ResponseFormatter.unauthorized(message=detail)
         
     elif response.status_code == 403:
-        return ResponseFormatter.forbidden(detail or "Access denied.")
+        return ResponseFormatter.forbidden(message=detail)
         
     elif response.status_code == 404:
-        return ResponseFormatter.not_found(detail or "Resource not found.")
+        return ResponseFormatter.not_found(message=detail)
     
     else:
         return ResponseFormatter.error(

@@ -111,31 +111,6 @@ class AdminUpdateUserSerializer(serializers.ModelSerializer):
         return value
 
 # APIドキュメント用
-class SuccessResponseSerializer(serializers.Serializer):
-    """データなしの成功レスポンス"""
-    status = serializers.CharField(read_only=True, default="success")
-    data = serializers.ReadOnlyField(allow_null=True, default=None)
-
-class FailResponseSerializer(serializers.Serializer):
-    """
-    ステータスが "fail" のレスポンスボディを表すシリアライザー
-    (主にバリデーションエラー用 - 422 Unprocessable Entity)
-    """
-    status = serializers.CharField(read_only=True, default="fail")
-    data = serializers.DictField(
-        child=serializers.ListField(child=serializers.CharField()),
-        read_only=True,
-        help_text='フィールド名をキーとしたエラーメッセージのリスト'
-    )
-
-class ErrorResponseSerializer(serializers.Serializer):
-    """
-    ステータスが "error" のレスポンスボディを表すシリアライザー
-    (クライアントエラー・サーバーエラー用 - 4xx, 5xx)
-    """
-    status = serializers.CharField(read_only=True, default="error")
-    message = serializers.CharField(read_only=True)
-
 class CSRFTokenSerializer(serializers.Serializer):
     csrf_token = serializers.CharField(read_only=True)
 
@@ -188,6 +163,3 @@ class AdminUserDataSerializer(serializers.Serializer):
 class AdminUserResponseSerializer(serializers.Serializer):
     status = serializers.CharField(read_only=True, default="success")
     data = AdminUserDataSerializer(read_only=True)
-
-
-

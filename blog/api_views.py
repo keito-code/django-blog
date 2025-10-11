@@ -1,187 +1,379 @@
-from rest_framework import viewsets, filters, status
-from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
+from rest_framework import viewsets, filters, generics
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
-from .pagination import CustomPageNumberPagination
-from django.db.models import Q
-from .models import Post
-from .serializers import PostListSerializer, PostDetailSerializer
-from .permissions import IsAuthorOrReadOnly
+from django.db.models import Q, Count
 from rest_framework.decorators import action
-from rest_framework.response import Response
-from django.utils import timezone
+from core.responses import ResponseFormatter
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from .mixins import JSendResponseMixin
+from .models import Post, Category
+from .permissions import IsAuthorOrReadOnly
+from .pagination import CustomPageNumberPagination
+from .schema import JSendAutoSchema
+from core.serializers import (
+    SuccessResponseSerializer,
+    FailResponseSerializer,
+    ErrorResponseSerializer  
+)
+from .serializers import (
+    # Model Serializers
+    PostListSerializer,
+    PostDetailSerializer,
+    PostCreateSerializer,
+    PostUpdateSerializer,
+    CategorySerializer,
+    # Response Serializers
+    PostListResponseSerializer,
+    PostDetailResponseSerializer,
+    PostCreateResponseSerializer,
+    PostUpdateResponseSerializer,
+    CategoryListResponseSerializer,
+    CategoryDetailResponseSerializer,
+    CategoryCreateResponseSerializer,
+    CategoryUpdateResponseSerializer,
+    CategoryPostsResponseSerializer,
+    UserPostListResponseSerializer,
+)
 
-class PostViewSet(viewsets.ModelViewSet):
+"""
+operation_id を手動指定している理由
+list (GET /v1/posts/) と retrieve (GET /v1/posts/{slug}/) は
+両方とも GET メソッドのため、自動生成では operation_id が衝突するから
+"""
+
+@extend_schema_view(
+    list=extend_schema(
+        operation_id='posts_list',
+        summary="記事一覧取得",
+        description="公開された記事の一覧を取得",
+        responses={
+            200: PostListResponseSerializer,
+            422: FailResponseSerializer
+        },
+        tags=['Posts']
+    ),
+    create=extend_schema(
+        operation_id='posts_create',
+        summary="記事作成",
+        description="新しい記事を作成（要認証）",
+        request=PostCreateSerializer,
+        responses={
+            201: PostCreateResponseSerializer,
+            401: ErrorResponseSerializer,
+            422: FailResponseSerializer,
+        },
+        tags=['Posts']
+    ),
+    retrieve=extend_schema(
+        operation_id='posts_retrieve',
+        summary="記事詳細取得",
+        description="指定されたスラッグの記事詳細を取得。作者は自分の下書きも閲覧可能",
+        responses={
+            200: PostDetailResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Posts']
+    ),
+    update=extend_schema(
+        operation_id='posts_update',
+        summary="記事更新（全体）",
+        description="記事を更新（作者のみ）",
+        request=PostUpdateSerializer,
+        responses={
+            200: PostUpdateResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            422: FailResponseSerializer,
+        },
+        tags=['Posts']
+    ),
+    partial_update=extend_schema(
+        operation_id='posts_partial_update',
+        summary="記事部分更新",
+        description="記事を部分更新（作者のみ）。status変更で公開/下書き切り替え可能",
+        request=PostUpdateSerializer,
+        responses={
+            200: PostUpdateResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            422: FailResponseSerializer,
+        },
+        tags=['Posts']
+    ),
+    destroy=extend_schema(
+        operation_id='posts_destroy',
+        summary="記事削除",
+        description="記事を削除（作者のみ）",
+        responses={
+            200: SuccessResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Posts']
+    )
+)
+
+class PostViewSet(JSendResponseMixin, viewsets.ModelViewSet):
     """
     ブログ記事のCRUD操作を提供するAPI ViewSet
     
-    このAPIでは以下の操作が可能です：
-    - **リスト取得** (GET /api/v1/blog/posts/): 記事一覧を取得
-    - **詳細取得** (GET /api/v1/blog/posts/{id}/): 特定の記事を取得
-    - **作成** (POST /api/v1/blog/posts/): 新規記事を作成（要認証）
-    - **更新** (PUT/PATCH /api/v1/blog/posts/{id}/): 記事を更新（要認証、作者のみ）
-    - **削除** (DELETE /api/v1/blog/posts/{id}/): 記事を削除（要認証、作者のみ）
-    
-    ## 認証とアクセス権限
-    - 未認証ユーザー: 公開記事（published）の閲覧のみ可能
-    - 認証済みユーザー: 自分の記事は全て（draft含む）アクセス可能、作成・編集・削除可能
-    
-    ## フィルタリング
-    - `status`: 記事のステータス（published/draft）でフィルタ
-    - `author`: 作者のIDでフィルタ
-    
-    ## 検索
-    - `search`: タイトルと本文を対象にキーワード検索
-    
-    ## ソート
-    - `ordering`: created, updated, publish フィールドでソート可能
-    - デフォルトは作成日時の降順（-created）
-    
-    ## ページネーション
-    - デフォルト: 10件/ページ
-    - `pageSize`: 最大100件までページサイズ変更可能
+    エンドポイント:
+    - GET /v1/posts/ - 記事一覧
+    - POST /v1/posts/ - 記事作成（要認証）
+    - GET /v1/posts/{slug}/ - 記事詳細
+    - PATCH /v1/posts/{slug}/ - 記事更新（作者のみ、status変更で公開/下書き切り替え）
+    - DELETE /v1/posts/{slug}/ - 記事削除（作者のみ）
     """
 
-
-    serializer_class = PostListSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly]
+    schema = JSendAutoSchema()
+    resource_name = 'posts'
+    resource_name_singular = 'post'
+    permission_classes = [IsAuthorOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'author']
+    filterset_fields = ['status', 'author', 'category']
     search_fields = ['title', 'content']
-    ordering_fields = ['created', 'updated', 'publish']
-    ordering = ['-created']
+    ordering_fields = ['created_at', 'updated_at']
+    ordering = ['-created_at']
     pagination_class = CustomPageNumberPagination
     lookup_field = 'slug'
     
     def get_queryset(self):
-        """
-        クエリセットをユーザーの認証状態に応じて制御
-        - 未認証: 公開記事のみ
-        - 認証済み: 公開記事 + 自分の全ての記事
-        """
+        queryset = Post.objects.select_related('author', 'category')
+
+        # 一覧: 公開のみ
+        if self.action == 'list':
+            return queryset.filter(status='published')
+
+        # 詳細/編集: 公開 + 自分の下書き
         if self.request.user.is_authenticated:
-            # 認証済みユーザーは公開記事 + 自分の全ての記事を見ることができる
-            return Post.objects.filter(
+            return queryset.filter(
                 Q(status='published') | Q(author=self.request.user)
-            ).distinct().order_by('-created')
-        else:
-            # 未認証ユーザーは公開記事のみ
-            return Post.objects.filter(status='published').order_by('-created')
+            )
     
+        # 未認証: 公開のみ
+        return queryset.filter(status='published')
+
     def get_serializer_class(self):
-        """
-        アクションに応じてシリアライザーを選択
-        """
-        if self.action in ['retrieve', 'create', 'update', 'partial_update']:
-            # 詳細取得、作成、更新時はDetailSerializerを使用
+        """アクションに応じたシリアライザー選択"""
+        if self.action == 'list':
+            return PostListSerializer
+        elif self.action == 'retrieve':
             return PostDetailSerializer
-        return self.serializer_class
+        elif self.action == 'create':
+            return PostCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return PostUpdateSerializer
+        return PostListSerializer
     
     def perform_create(self, serializer):
-        """
-        記事作成時に作成者を自動設定
-        """
+        """作成時に作者を自動設定"""
         serializer.save(author=self.request.user)
 
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
-    def my_posts(self, request):
+    def partial_update(self, request, *args, **kwargs):
         """
-        現在のユーザーの投稿一覧を取得
+        記事の部分更新（status変更による公開/下書き切り替えを含む）
         
-        認証が必要です。
+        PATCH /v1/posts/{slug}/
+        {
+            "status": "published"  // または "draft"
+        }
         """
-        posts = self.get_queryset().filter(author=request.user)
-        page = self.paginate_queryset(posts)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(posts, many=True)
-        return Response(serializer.data)
+        instance = self.get_object()
+
+        data = request.data.copy() 
+        
+        # status変更時のバリデーション
+        if 'status' in request.data:
+            new_status = request.data['status']
+            
+            # バリデーション
+            if new_status not in ['draft', 'published']:
+                return ResponseFormatter.validation_error({
+                    'status': ['有効なステータスは "draft" または "published" です']
+                })
+                        
+            # 同じステータスならフィールドを無視
+            if instance.status == new_status:
+                data.pop('status')
+
+        serializer = self.get_serializer(instance, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        # JSend形式で返す
+        return ResponseFormatter.success({
+            self.resource_name_singular: serializer.data
+        })
+
+"""
+generics.ListAPIView に @extend_schema をクラスの前に配置する場合、
+operation_id を指定すると drf-spectacular が内部の get() メソッドと
+二重解釈してエラーが発生する。そのため operation_id は指定せず自動生成に任せる。
+"""
+
+@extend_schema(
+    summary="ユーザーの投稿一覧",
+    description="認証済みユーザー自身の投稿一覧を取得",
+    responses={
+        200: UserPostListResponseSerializer,
+        401: ErrorResponseSerializer
+    },
+    tags=['Posts']
+)
+
+class UserPostListView(generics.ListAPIView):
+    """
+    ユーザーの投稿一覧
+    GET /v1/users/me/posts/
+    """
+    schema = JSendAutoSchema()
+    serializer_class = PostListSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = CustomPageNumberPagination
+    filter_backends = [filters.OrderingFilter]
+    ordering = ['-created_at']
+
+    # リソース名を定義（ページネーション用）
+    resource_name = 'posts'
+
+    def get_queryset(self):
+        """現在のユーザーの投稿を返す"""
+        return Post.objects.filter(
+            author=self.request.user
+        ).select_related('author', 'category')
+
+@extend_schema_view(
+    list=extend_schema(
+        operation_id='categories_list',
+        summary="カテゴリー一覧取得",
+        description="すべてのカテゴリー一覧を取得（公開記事数付き）",
+        responses={
+            200: CategoryListResponseSerializer
+        },
+        tags=['Categories']
+    ),
+    create=extend_schema(
+        operation_id='categories_create',
+        summary="カテゴリー作成",
+        description="新しいカテゴリーを作成（管理者のみ）",
+        request=CategorySerializer,
+        responses={
+            201: CategoryCreateResponseSerializer,
+            403: ErrorResponseSerializer,
+            422: FailResponseSerializer,
+        },
+        tags=['Categories']
+    ),
+    retrieve=extend_schema(
+        operation_id='categories_retrieve',
+        summary="カテゴリー詳細取得",
+        description="指定されたスラッグのカテゴリー詳細を取得",
+        responses={
+            200: CategoryDetailResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Categories']
+    ),
+    update=extend_schema(
+        operation_id='categories_update',
+        summary="カテゴリー更新（全体）",
+        description="カテゴリーを更新（管理者のみ）",
+        request=CategorySerializer,
+        responses={
+            200: CategoryUpdateResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            422: FailResponseSerializer,
+        },
+        tags=['Categories']
+    ),
+    partial_update=extend_schema(
+        operation_id='categories_partial_update',
+        summary="カテゴリー部分更新",
+        description="カテゴリーを部分更新（管理者のみ）",
+        request=CategorySerializer,
+        responses={
+            200: CategoryUpdateResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            422: FailResponseSerializer,
+        },
+        tags=['Categories']
+    ),
+    destroy=extend_schema(
+        operation_id='categories_destroy',
+        summary="カテゴリー削除",
+        description="カテゴリーを削除（管理者のみ）",
+        responses={
+            200: SuccessResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Categories']
+    ),
+    posts=extend_schema(
+        operation_id='categories_posts_list',
+        summary="カテゴリーの投稿一覧",
+        description="指定されたカテゴリーに属する公開記事一覧を取得",
+        responses={
+            200: CategoryPostsResponseSerializer,
+            404: ErrorResponseSerializer
+        },
+        tags=['Categories']
+    )
+)
+
+class CategoryViewSet(JSendResponseMixin, viewsets.ModelViewSet):
+    """
+    カテゴリーのCRUD操作を提供するAPI ViewSet
     
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
-    def drafts(self, request):
-        """
-        現在のユーザーの下書き一覧を取得
-        
-        認証が必要です。
-        """
-        drafts = self.get_queryset().filter(author=request.user, status='draft')
-        page = self.paginate_queryset(drafts)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(drafts, many=True)
-        return Response(serializer.data)
+    エンドポイント:
+    - GET /v1/categories/ - カテゴリー一覧（誰でも）
+    - POST /v1/categories/ - カテゴリー作成（管理者のみ）
+    - GET /v1/categories/{slug}/ - カテゴリー詳細（誰でも）
+    - PUT/PATCH /v1/categories/{slug}/ - カテゴリー更新（管理者のみ）
+    - DELETE /v1/categories/{slug}/ - カテゴリー削除（管理者のみ）
+    - GET /v1/categories/{slug}/posts/ - カテゴリーの投稿一覧（誰でも）
+    """
+
+    # リソース名を定義
+    resource_name = 'categories'
+    resource_name_singular = 'category'
     
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def publish(self, request, slug=None):
-        """
-        下書きを公開状態に変更
-        
-        投稿の作者のみが実行可能です。
-        """
-        # 投稿取得
-        post = self.get_object()
+    queryset = Category.objects.annotate(
+        post_count=Count('posts', filter=Q(posts__status='published'))
+    )
+    serializer_class = CategorySerializer
+    lookup_field = 'slug'
+    pagination_class = None # カテゴリーの数が少ないと判断したため
+    
+    def get_permissions(self):
+        """メソッドに応じた権限設定"""
+        if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
+            return [AllowAny()]
+        return [IsAdminUser()]
+    
+    @action(detail=True, methods=['get'])
+    def posts(self, request, slug=None):
+        """カテゴリーに属する公開記事一覧"""
+        category = self.get_object()
+        posts = Post.objects.filter(
+            category=category,
+            status='published'
+        ).select_related('author').order_by('-created_at')
 
-        # 権限チェック
-        if post.author != request.user:
-            return Response(
-                {'detail': 'この投稿を公開する権限がありません。'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # ステータスチェック
-        if post.status == 'published':
-            return Response(
-                {'detail': 'この投稿は既に公開されています。'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # 公開処理
-        post.status = 'published'
-        
-        # 保存
-        post.save(update_fields=['status', 'updated'])
+        original_resource_name = self.resource_name
+        self.resource_name = 'posts'
+        try:
+            paginator = CustomPageNumberPagination()
+            page = paginator.paginate_queryset(posts, request, view=self)
 
-        # レスポンス
-        serializer = self.get_serializer(post)
-        return Response(
-            {
-                'message': '投稿を公開しました。',
-                'post': serializer.data
-            },
-            status=status.HTTP_200_OK
-        )
+            if page is not None:
+                serializer =PostListSerializer(page, many=True)
+                return paginator.get_paginated_response(serializer.data)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def unpublish(self, request, slug=None):
-        """
-        公開投稿を下書きに戻す
-        
-        投稿の作者のみが実行可能です。
-        """
-        post = self.get_object()
-        
-        if post.author != request.user:
-            return Response(
-                {'detail': 'この投稿を非公開にする権限がありません。'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        if post.status == 'draft':
-            return Response(
-                {'detail': 'この投稿は既に下書き状態です。'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        post.status = 'draft'
-        post.save(update_fields=['status', 'updated'])
-        
-        serializer = self.get_serializer(post)
-        return Response(
-            {
-                'message': '投稿を下書きに戻しました。',
-                'post': serializer.data
-            },
-            status=status.HTTP_200_OK
-        )
-
+            serializer = PostListSerializer(posts, many=True)
+            return ResponseFormatter.success({'posts': serializer.data})
+        finally:
+            # 例外が起きても確実に戻す
+            self.resource_name = original_resource_name

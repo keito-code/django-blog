@@ -15,6 +15,12 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema
 from .services import AuthService, UserService
 from core.responses import ResponseFormatter
+from rest_framework.generics import GenericAPIView
+from core.serializers import (
+    SuccessResponseSerializer,
+    FailResponseSerializer,
+    ErrorResponseSerializer  
+)
 from .serializers import (
     LoginSerializer,
     LoginSuccessResponseSerializer,
@@ -28,10 +34,7 @@ from .serializers import (
     PrivateUserSerializer,
     UpdateUserSerializer,
     AdminUserSerializer,
-    AdminUpdateUserSerializer,
-    SuccessResponseSerializer,
-    FailResponseSerializer,
-    ErrorResponseSerializer
+    AdminUpdateUserSerializer
 )
 
 User = get_user_model()
@@ -43,9 +46,12 @@ class CSRFTokenView(APIView):
     permission_classes = [AllowAny]
     
     @extend_schema(
+        summary="CSRFトークン取得",
+        description="CSRFトークンをCookieに設定して返す。フォーム送信前に必要",
         responses={
             200: CSRFTokenResponseSerializer
-        }
+        },
+        tags=['Authentication']
     )
 
     def get(self, request):
@@ -54,17 +60,9 @@ class CSRFTokenView(APIView):
         response = ResponseFormatter.success(
             data={'csrf_token': csrf_token}
         )
-        
-        # CSRFトークンをCookieに設定
-        response.set_cookie(
-            key=settings.CSRF_COOKIE_NAME,
-            value=csrf_token,
-            max_age=settings.CSRF_COOKIE_AGE,
-            httponly=settings.CSRF_COOKIE_HTTPONLY,
-            secure=settings.CSRF_COOKIE_SECURE,
-            samesite=settings.CSRF_COOKIE_SAMESITE
-        )
-        
+
+        # ensure_csrf_cookieデコレータが自動的にCookieを設定するので
+        # 手動でのset_cookieは不要        
         return response
 
 @method_decorator(csrf_protect, name='dispatch')
@@ -74,13 +72,16 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
     
     @extend_schema(
+        summary="ユーザーログイン",
+        description="メールアドレスとパスワードでログイン。JWTトークンをHttpOnly Cookieに設定",
         request=LoginSerializer,
         responses={
             200: LoginSuccessResponseSerializer,
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer, 
             422: FailResponseSerializer
-        }
+        },
+        tags=['Authentication']
     )
     def post(self, request):
         """ユーザーログイン処理"""
@@ -135,17 +136,21 @@ class LoginView(APIView):
         return response
 
 @method_decorator(csrf_protect, name='dispatch')
-class LogoutView(APIView):
+class LogoutView(GenericAPIView):
     """ログアウトエンドポイント"""
-    # authentication_classes不要（グローバル設定を使用）
     permission_classes = [IsAuthenticated]
+    serializer_class = SuccessResponseSerializer
     
     @extend_schema(
+        summary="ログアウト",
+        description="リフレッシュトークンを無効化し、認証Cookieを削除",
+        request=None,
         responses={
             200: SuccessResponseSerializer,
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer
-        }
+        },
+        tags=['Authentication']
     )
     def post(self, request):
         """ログアウト処理"""
@@ -183,17 +188,22 @@ class LogoutView(APIView):
         return response
 
 @method_decorator(csrf_protect, name='dispatch')
-class RefreshTokenView(APIView):
+class RefreshTokenView(GenericAPIView):
     """トークンリフレッシュエンドポイント"""
     authentication_classes = []
     permission_classes = [AllowAny]
+    serializer_class = SuccessResponseSerializer
     
     @extend_schema(
+        summary="トークンリフレッシュ",
+        description="リフレッシュトークンを使用してアクセストークンを更新",
+        request=None,
         responses={
             200: SuccessResponseSerializer,
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer
-        }
+        },
+        tags=['Authentication']
     )
     def post(self, request):
         """アクセストークンを更新"""
@@ -246,12 +256,15 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
     
     @extend_schema(
+        summary="ユーザー登録",
+        description="新規ユーザーを登録し、自動的にログイン状態にする",
         request=RegisterSerializer,
         responses={
             201: RegisterSuccessResponseSerializer,
             403: ErrorResponseSerializer,
             422: FailResponseSerializer
-        }
+        },
+        tags=['Authentication']
     )
     def post(self, request):
         """新規ユーザー登録"""
@@ -305,7 +318,6 @@ class RegisterView(APIView):
 @method_decorator(csrf_protect, name='dispatch')
 class CurrentUserView(APIView):
     """現在のユーザー情報エンドポイント"""
-    # authentication_classes不要（グローバル設定を使用）
     permission_classes = [IsAuthenticated]
 
     def get_user_serializer(self):
@@ -324,11 +336,14 @@ class CurrentUserView(APIView):
         return PrivateUserSerializer
     
     @extend_schema(
+        summary="現在のユーザー情報取得",
+        description="認証済みユーザー自身の詳細情報を取得",
         responses={
             200: PrivateUserResponseSerializer,
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer
-        }
+        },
+        tags=['Users']
     )
     def get(self, request):
         """現在のユーザー情報を取得"""
@@ -337,13 +352,16 @@ class CurrentUserView(APIView):
         return ResponseFormatter.success(data={'user': serializer.data})
     
     @extend_schema(
+        summary="ユーザー情報更新", 
+        description="認証済みユーザー自身の情報を部分更新", 
         request=UpdateUserSerializer,
         responses={
             200: UpdateUserResponseSerializer,
             422: FailResponseSerializer,
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer
-        }
+        },
+        tags=['Users']
     )
 
     def patch(self, request):
@@ -379,10 +397,13 @@ class VerifyTokenView(APIView):
     permission_classes = [AllowAny]
     
     @extend_schema(
+        summary="トークン検証",
+        description="アクセストークンの有効性を検証",
         responses={
             200: VerifyTokenSuccessResponseSerializer,
             401: ErrorResponseSerializer
-        }
+        },
+        tags=['Authentication']
     )
     def get(self, request):
         access_token = request.COOKIES.get(settings.AUTH_COOKIE_ACCESS_TOKEN)

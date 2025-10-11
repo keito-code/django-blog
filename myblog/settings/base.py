@@ -40,7 +40,7 @@ API_VERSION = 'v1'
 # Cookie名の定義（フロントエンドと共有する契約値）
 AUTH_COOKIE_ACCESS_TOKEN = 'access_token'
 AUTH_COOKIE_REFRESH_TOKEN = 'refresh_token'
-CSRF_COOKIE_NAME = 'csrf_token'
+CSRF_COOKIE_NAME = 'csrftoken' # Djsngo標準の名前
 
 # JWT Cookie認証設定
 AUTH_COOKIE_HTTPONLY = True  # XSS対策: JSからアクセス不可
@@ -109,7 +109,10 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'axes.middleware.AxesMiddleware',
+    'myblog.middleware.CacheControlMiddleware',
 ]
+
+CSRF_FAILURE_VIEW = 'myblog.urls.csrf_failure_handler'
 
 ROOT_URLCONF = 'myblog.urls'
 
@@ -195,25 +198,20 @@ LOGIN_REDIRECT_URL = '/blog/'
 LOGOUT_REDIRECT_URL = '/blog/'
 
 # セキュリティ設定
+X_FRAME_OPTIONS = 'DENY'  # iframe内での表示を完全禁止（クリックジャッキング対策）
+SECURE_CONTENT_TYPE_NOSNIFF = True  # IEのコンテンツ自動判定を無効化（MIME詐称防止）
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'  # リファラーポリシー
+SESSION_COOKIE_HTTPONLY = True  # JavaScriptからセッションCookieへのアクセス禁止（XSS対策）
 if not DEBUG:
-    # セッションクッキーのセキュリティ
     SESSION_COOKIE_SECURE = True  # HTTPS接続でのみ送信
 
-    # クリックジャッキング対策
-    X_FRAME_OPTIONS = 'DENY'  # iframe内での表示を完全禁止
-    
-    # コンテンツタイプの推測を防ぐ
-    SECURE_CONTENT_TYPE_NOSNIFF = True  # IEのコンテンツ自動判定を無効化
-        # HTTPSリダイレクト設定
+    # HTTPSリダイレクト設定
     if os.environ.get('DISABLE_SSL_REDIRECT'):
         # ローカルで本番モードテスト用
         SECURE_SSL_REDIRECT = False
     else:
         # 本番環境のみTrue
         SECURE_SSL_REDIRECT = True
-
-    # リファラーポリシー
-    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
     
     # HSTS (HTTP Strict Transport Security)
     # ブラウザに「このサイトは今後HTTPSでのみアクセスする」と記憶させる
@@ -237,8 +235,6 @@ if not DEBUG:
     # 将来的な追加設定（現在は無効）
     # SECURE_HSTS_INCLUDE_SUBDOMAINS = True  # サブドメインも対象に
     # SECURE_HSTS_PRELOAD = True  # ブラウザのプリロードリストに登録
-
-SESSION_COOKIE_HTTPONLY = True
 
 # django-axes 設定（ブルートフォース対策）
 AXES_FAILURE_LIMIT = 5  # 5回失敗でロック
@@ -339,13 +335,13 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'accounts.authentication.CookieJWTAuthentication',
     ],
-    'DEFAULT_RENDERER_CLASSES': (
-        'djangorestframework_camel_case.render.CamelCaseJSONRenderer',
+    'DEFAULT_RENDERER_CLASSES': [
+        'core.renderers.JSendCamelCaseRenderer',
         'djangorestframework_camel_case.render.CamelCaseBrowsableAPIRenderer',
-    ),
+    ] if DEBUG else [
+        'core.renderers.JSendCamelCaseRenderer',
+    ],
     'DEFAULT_PARSER_CLASSES': (
-        'djangorestframework_camel_case.parser.CamelCaseFormParser',
-        'djangorestframework_camel_case.parser.CamelCaseMultiPartParser',
         'djangorestframework_camel_case.parser.CamelCaseJSONParser',
     ),
     "EXCEPTION_HANDLER": 'core.exceptions.custom_exception_handler',
@@ -365,8 +361,7 @@ REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10,
+    'DEFAULT_PAGINATION_CLASS': 'blog.pagination.CustomPageNumberPagination',
     'TEST_REQUEST_DEFAULT_FORMAT': 'json',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
@@ -374,26 +369,29 @@ REST_FRAMEWORK = {
 # drf-spectacular設定
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Django Blog API',
-    'DESCRIPTION': 'ブログシステムのREST API',
+    'DESCRIPTION': 'ブログシステムのAPI',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
-
-     'SECURITY': [
-        {'bearerAuth': []}
+    'AUTHENTICATION_EXTENSIONS': [
+        'accounts.schema_extensions.CookieJWTAuthenticationScheme',
     ],
 
-    'SECURITY_SCHEMES': {
-        'bearerAuth': {
-            'type': 'http',
-            'scheme': 'bearer',
-            'bearerFormat': 'JWT',
-        }
-    },
+    'REQUEST_BODY_DEFAULT_CONTENTS': ['application/json'],
 
     'POSTPROCESSING_HOOKS': [
         'drf_spectacular.contrib.djangorestframework_camel_case.camelize_serializer_fields'
     ],
+
+    'TAGS': [
+        {'name': 'Authentication', 'description': '認証・認可関連'},
+        {'name': 'Users', 'description': 'ユーザー情報関連'},
+        {'name': 'Posts', 'description': 'ブログ記事関連'},
+        {'name': 'Categories', 'description': 'カテゴリー関連'},
+    ],
+
+     # タグの自動ソートを無効化
+    'SORT_TAGS': False
 }
 
 # CORS設定
