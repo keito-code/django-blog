@@ -7,20 +7,23 @@ admin.site.site_url = None # 「サイトを表示」リンクを非表示
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
-    list_display = ('title', 'slug', 'author', 'publish', 'status')
-    list_filter = ('status', 'created', 'publish', 'author')
+    list_display = ('title', 'slug', 'author', 'created_at', 'status')
+    list_filter = ('status', 'created_at', 'updated_at', 'author')
     search_fields = ('title', 'content')
     prepopulated_fields = {'slug': ('title',)}
     raw_id_fields = ('author',)
-    date_hierarchy = 'publish'
-    ordering = ('status', 'publish')
+    date_hierarchy = 'created_at'
+    ordering = ('status', '-created_at')
     view_on_site = False  # 「サイト上で表示」ボタンを非表示
+    list_per_page = 50  # ページネーション設定
+    list_editable = ('status',)  # 一覧で直接編集
+    save_on_top = True  # 上部にも保存ボタン
 
 
 @admin.register(Comment)
 class CommentAdmin(admin.ModelAdmin):
-    list_display = ('name', 'email', 'post', 'created', 'active')
-    list_filter = ('active', 'created', 'updated')
+    list_display = ('name', 'email', 'post', 'created_at', 'active')
+    list_filter = ('active', 'created_at', 'updated_at')
     search_fields = ('name', 'email', 'body')
 
 

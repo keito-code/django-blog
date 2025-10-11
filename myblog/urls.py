@@ -1,19 +1,3 @@
-"""
-URL configuration for myblog project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -25,13 +9,13 @@ from myblog.views import RelaxedSpectacularSwaggerView, RelaxedSpectacularRedocV
 urlpatterns = [
     path('', HomeView.as_view(), name='home'),
     path(f'{settings.ADMIN_URL}', admin.site.urls), # 動的な管理画面URL
-    path('accounts/', include(('accounts.urls_web', 'accounts'), namespace='accounts')),
+    path('accounts/', include(('accounts.urls_web', 'accounts'), namespace='accounts-web')),
     # ブログのWeb画面は /blog/ 以下に配置
     path('blog/', include(('blog.urls', 'blog-web'), namespace='blog-web')),
     # ブログのAPIは /api/v1/blog/ 以下に配置
     path('api/v1/blog/', include(('blog.api.v1.urls', 'blog-api'), namespace='blog-api')),
     # 認証APIは /api/v1/auth/ 以下に配置
-    path('api/v1/auth/', include('accounts.urls')),
+    path('api/v1/auth/', include(('accounts.urls', 'accounts'), namespace='accounts')),
     # APIドキュメント
     path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/v1/schema/swagger-ui/', RelaxedSpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

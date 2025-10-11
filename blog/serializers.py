@@ -1,96 +1,95 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
-from .models import Post, Comment
-import bleach
+from django.contrib.auth import get_user_model
+from .models import Post, Category
+
+User = get_user_model()
 
 
-class AuthorSerializer(serializers.ModelSerializer):
-    """投稿者用シリアライザー"""
+class CategorySerializer(serializers.ModelSerializer):
+    """カテゴリーシリアライザー"""
     class Meta:
-        model = User
-        fields = ['id', 'username']
-
-
-class CommentSerializer(serializers.ModelSerializer):
-    """コメント用シリアライザー"""
-    class Meta:
-        model = Comment
-        fields = ['id', 'name', 'email', 'body', 'created']
-        read_only_fields = ['created']
-    
-    def validate_body(self, value):
-        """コメント本文のサニタイズ（プレーンテキストのみ許可）"""
-        return bleach.clean(value, tags=[], strip=True)
-
-    def validate_name(self, value):
-        """名前のサニタイズ"""
-        return bleach.clean(value, tags=[], strip=True)
-    
-    def validate_email(self, value):
-        """メールアドレスのサニタイズ"""
-        return bleach.clean(value, tags=[], strip=True)
+        model = Category
+        fields = ['id', 'name', 'slug']
+        read_only_fields = ['slug']
 
 class PostListSerializer(serializers.ModelSerializer):
-    """記事一覧用シリアライザー"""
-    author = serializers.ReadOnlyField(source='author.username')
-    
-    class Meta:
-        model = Post
-        fields = ['id', 'title', 'slug', 'author', 'status', 'publish', 'created']
-        read_only_fields = ['slug', 'created']
-    
-
-class PostDetailSerializer(serializers.ModelSerializer):
-    """記事詳細用シリアライザー"""
-    author = AuthorSerializer(read_only=True)
-    comments = CommentSerializer(many=True, read_only=True)
+    """記事一覧用"""
+    author_name = serializers.SerializerMethodField()
+    category = CategorySerializer(read_only=True)
     
     class Meta:
         model = Post
         fields = [
-            'id', 'title', 'slug', 'author', 'content', 'status',
-            'publish', 'created', 'updated', 'comments'
+            'id', 'title', 'slug', 'author_name', 'category',
+            'status', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['slug', 'created', 'updated']
+        read_only_fields = ['slug']
+
+    def get_author_name(self, obj):
+        # プライバシー保護のため匿名化
+        return f"Author{obj.author.id}"
+    
+class PostDetailSerializer(serializers.ModelSerializer):
+    """記事詳細用"""
+    author_name = serializers.SerializerMethodField()
+    category = CategorySerializer(read_only=True)
+    
+    class Meta:
+        model = Post
+        fields = [
+            'id', 'title', 'slug', 'author_name', 'category',
+            'content', 'status','created_at', 'updated_at'
+        ]
+        read_only_fields = ['slug']
+
+    def get_author_name(self, obj):
+        return f"Author{obj.author.id}"
+
+class PostCreateSerializer(serializers.Serializer):
+    """記事作成用（認証必要）"""
+    title = serializers.CharField(max_length=200)
+    content = serializers.CharField()
+    category_id = serializers.IntegerField(required=False, allow_null=True)
+    status = serializers.ChoiceField(
+        choices=['draft', 'published'],
+        default='draft'
+    )
 
     def validate_title(self, value):
-        """タイトルのサニタイズ（HTMLタグは不要）"""
-        return bleach.clean(value, tags=[], strip=True)
+        if len(value) < 3:
+            raise serializers.ValidationError(
+                "タイトルは3文字以上必要です"
+            )
+        return value
 
-    def validate_content(self, value):
-        """
-        投稿内容のサニタイズ
-        Next.jsのServerMarkdownRendererと同じ設定で統一
-        """
-        # Next.jsと完全に同じ許可タグ
-        allowed_tags = [
-            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-            'p', 'br', 'strong', 'em', 'u', 's', 'del',
-            'ul', 'ol', 'li',
-            'blockquote', 'code', 'pre', 'span',
-            'a', 'img',
-            'table', 'thead', 'tbody', 'tr', 'th', 'td',
-            'hr'
-        ]
-        
-        # Next.jsと完全に同じ許可属性
-        allowed_attributes = {
-            'a': ['href','title', 'target', 'rel'],
-            'img': ['src', 'alt', 'title'],
-            'code': ['class'],  # highlight.js用
-            'span': ['class'],  # highlight.js用
-            'pre': ['class'],
-        }
-        
-        # Next.jsと完全に同じ許可プロトコル
-        allowed_protocols = ['http', 'https', 'mailto', 'tel']
-        
-        return bleach.clean(
-            value,
-            tags=allowed_tags,
-            attributes=allowed_attributes,
-            protocols=allowed_protocols,
-            strip=True,  # 許可されていないタグは完全に除去
-            strip_comments=True  # HTMLコメントも除去
-        )
+    def validate(self, data):
+        if data.get('title') == data.get('content'):
+            raise serializers.ValidationError(
+                "タイトルと本文に同じ内容は設定できません"
+            )
+        return data
+
+class PostUpdateSerializer(serializers.Serializer):
+    """記事更新用（認証必要）"""
+    title = serializers.CharField(max_length=200, required=False)
+    content = serializers.CharField(required=False)
+    category_id = serializers.IntegerField(required=False, allow_null=True)
+    status = serializers.ChoiceField(
+        choices=['draft', 'published'],
+        required=False
+    )
+
+    def validate_title(self, value):
+        if value and len(value) < 3:
+            raise serializers.ValidationError(
+                "タイトルは3文字以上必要です"
+            )
+        return value
     
+    def validate(self, data):
+        if 'title' in data and 'content' in data:
+            if data['title'] == data['content']:
+                raise serializers.ValidationError(
+                    "タイトルと本文に同じ内容は設定できません"
+                )
+        return data

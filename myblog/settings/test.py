@@ -1,18 +1,21 @@
 import os
-os.environ['DEBUG'] = 'False'
-os.environ['SECRET_KEY'] = 'test-secret-key-for-testing-only'
-os.environ['ALLOWED_HOSTS'] = '*'
-os.environ['ADMIN_URL'] = 'admin/'
+import sys
+from pathlib import Path
 
+# .env.testのパスを定義
+REPO_DIR = Path(__file__).resolve().parent.parent.parent
+env_path = REPO_DIR / '.env.test'
+
+# .env.testが存在しない場合はエラー
+if not env_path.exists():
+    print(f"Error: {env_path} not found. Test settings require .env.test file.")
+    sys.exit(1)
+
+# .base.py に渡すために環境変数として設定
+os.environ["ENV_PATH"] = str(env_path)
+
+# base.pyを読み込む
 from .base import *
-
-# HTTPS リダイレクトを無効化（テスト環境）
-SECURE_SSL_REDIRECT = False
-
-# 他のセキュリティ設定も無効化
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
-
 
 # テスト用のデータベース設定
 DATABASES = {
@@ -21,6 +24,14 @@ DATABASES = {
         'NAME': ':memory:',  # メモリ上にDBを作成（高速）
     }
 }
+
+LANGUAGE_CODE = 'en-us'
+
+# セキュリティ設定を無効化（テスト環境）
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+AUTH_COOKIE_SECURE = False
 
 # メディアファイルの保存先を一時ディレクトリに
 import tempfile
@@ -44,18 +55,9 @@ PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.MD5PasswordHasher',
 ]
 
-
-
-# ログを抑制（テスト実行時の出力をきれいに）
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'handlers': {
-        'null': {
-            'class': 'logging.NullHandler',
-        },
-    },
-    'root': {
-        'handlers': ['null'],
-    },
+    'handlers': {"console": {"class": "logging.StreamHandler"}},
+    'root': {"handlers": ["console"], "level": "WARNING"},
 }

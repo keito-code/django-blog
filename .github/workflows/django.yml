@@ -17,6 +17,14 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
+
+    - name: Check test configuration
+      run: |
+        if [ ! -f .env.test ]; then
+          echo "Error: .env.test not found in repository"
+          exit 1
+        fi
+        echo ".env.test found, proceeding with tests"
     
     - name: Install dependencies
       run: |
@@ -26,15 +34,9 @@ jobs:
     - name: Run Tests
       env:
         DJANGO_SETTINGS_MODULE: myblog.settings.test
-        SECRET_KEY: ${{ secrets.SECRET_KEY }}
-        JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-        ADMIN_URL: admin
-        DEBUG: 'True'
-        ALLOWED_HOSTS: 'localhost,127.0.0.1'
-        DATABASE_URL: 'sqlite:///db.sqlite3'
-        CORS_ALLOWED_ORIGINS: 'http://localhost:3000'
       run: |
-        pytest blog/tests/ -v --cov=blog --cov-report=term
+        # .env.test ファイルを使用するので環境変数の個別設定は不要
+        pytest --cov=blog --cov=accounts --cov-report=term -v
 
   deploy:
     needs: test

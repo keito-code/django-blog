@@ -1,117 +1,193 @@
 from rest_framework import serializers
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from rest_framework.validators import UniqueValidator
 
 User = get_user_model()
 
-
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # 既存のフィールドのラベルを変更（上書きではなく修正）
-        self.fields['username'].label = 'ユーザー名'
-        self.fields['password'].label = 'パスワード'
-        self.fields['password'].style = {'input_type': 'password'}
-
-    def validate(self, attrs):
-        data = super().validate(attrs)
-        data['user'] = UserSerializer(self.user).data
-        return data
-
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-        token['username'] = user.username
-        token['email'] = user.email
-        return token
-
-class PublicUserSerializer(serializers.ModelSerializer):
-    """一般公開用のユーザー情報シリアライザー（セキュアバージョン）"""
-    class Meta:
-        model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'date_joined')
-        read_only_fields = ('id', 'date_joined')
-        # is_staffは意図的に除外
-
-
-class PrivateUserSerializer(serializers.ModelSerializer):
-    """プライベート用のユーザー情報シリアライザー（自分の情報を見る時）"""
-    class Meta:
-        model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 
-                 'date_joined', 'last_login', 'is_active')
-        read_only_fields = ('id', 'date_joined', 'last_login', 'is_active')
-        # is_staffは含めない
-
-
-class AdminUserSerializer(serializers.ModelSerializer):
-    """管理者用のユーザー情報シリアライザー（管理画面でのみ使用）"""
-    is_staff = serializers.BooleanField(read_only=True)
-    is_superuser = serializers.BooleanField(read_only=True)
-    
-    class Meta:
-        model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 
-                 'date_joined', 'last_login', 'is_active', 'is_staff', 'is_superuser')
-        read_only_fields = ('id', 'date_joined', 'last_login', 'is_staff', 'is_superuser')
-
-
-# 後方互換性のため（既存のコードが動くように）
-UserSerializer = PublicUserSerializer
-
 class RegisterSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(
-        required=True,
-        label='メールアドレス',
-        validators=[UniqueValidator(queryset=User.objects.all(), message="このメールアドレスは既に登録されています。")],
-        help_text='ログインに使用します'
-    )
     password = serializers.CharField(
-        write_only=True,
         required=True,
-        label='パスワード',
-        validators=[validate_password],
-        style={'input_type': 'password'},
-        help_text='8文字以上で設定してください'
+        write_only=True, 
+        validators=[validate_password]
     )
     password_confirmation = serializers.CharField(
-        write_only=True,
-        required=True,
-        label='パスワード (確認) ',
-        style={'input_type': 'password'},
-        help_text='同じパスワードを入力してください'
+        write_only=True, 
+        required=True
     )
 
     class Meta:
         model = User
-        fields = ('last_name', 'first_name', 'email', 'username', 'password', 'password_confirmation')
-
-        # モデルフィールドのラベルを日本語化
-        labels = {
-            'last_name': '姓',
-            'first_name': '名',
-            'username': 'ユーザー名',
-        }
-
+        fields = ['email', 'username', 'password', 'password_confirmation']
         extra_kwargs = {
-            'first_name': {'required': False},  # 名は任意
-            'last_name': {'required': False},   # 姓は任意
+            'email': {'required': True},
+            'username': {'required': True}
         }
+    
+    def validate_email(self, value):
+        # 前後の空白削除 + 小文字化
+        normalized = value.strip().lower()
+
+         # 大文字小文字を区別せず重複チェック
+        if User.objects.filter(email__iexact=normalized).exists():
+            raise serializers.ValidationError("Registration failed")
+        return normalized
+
+    def validate_username(self, value):
+        if User.objects.filter(username__iexact=value).exists():
+            # セキュリティ: 詳細を明かさない
+            raise serializers.ValidationError("Registration failed")
+        return value
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirmation']:
-            raise serializers.ValidationError({"password": "パスワードが一致しません。"})
-        return attrs
+            # セキュリティ: 一般的なエラーメッセージ
+            raise serializers.ValidationError(
+                {"password_confirmation": "Password confirmation does not match"}
+            )
 
+        # クリーンなデータを準備
+        attrs.pop('password_confirmation') # DBに保存不要なフィールドを削除
+        return attrs
+        
     def create(self, validated_data):
-        validated_data.pop('password_confirmation')
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data.get('email', ''),
-            password=validated_data['password'],
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', '')
-        )
-        return user
+        return User.objects.create_user(**validated_data) # 展開して渡す
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(required=True, write_only=True)
+
+class PublicUserSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = User
+        fields = ('id', 'date_joined')
+        read_only_fields = fields
+
+
+class PrivateUserSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'date_joined')
+        read_only_fields = fields
+
+class UpdateUserSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(required=False)
+
+    class Meta:
+        model = User
+        fields = ['email']  
+
+    def validate_email(self, value):
+        normalized = value.strip().lower()
+        if User.objects.filter(email__iexact=normalized).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError("Update failed. Please check your input and try again.")
+        return normalized
+
+class AdminUserSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'date_joined', 'is_active')
+        read_only_fields = fields
+
+class AdminUpdateUserSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
+
+    class Meta:
+        model = User
+        fields = ('username', 'email', 'is_active', 'is_staff')
+
+    def validate_email(self, value):
+        normalized = value.strip().lower()
+        if User.objects.filter(email__iexact=normalized).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError("Update failed. Please check your input and try again.")
+        return normalized
+    
+    def validate_username(self, value):
+        if User.objects.filter(username__iexact=value).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError("Update failed. Please check your input and try again.")
+        return value
+
+# APIドキュメント用
+class SuccessResponseSerializer(serializers.Serializer):
+    """データなしの成功レスポンス"""
+    status = serializers.CharField(read_only=True, default="success")
+    data = serializers.ReadOnlyField(allow_null=True, default=None)
+
+class FailResponseSerializer(serializers.Serializer):
+    """
+    ステータスが "fail" のレスポンスボディを表すシリアライザー
+    (主にバリデーションエラー用 - 422 Unprocessable Entity)
+    """
+    status = serializers.CharField(read_only=True, default="fail")
+    data = serializers.DictField(
+        child=serializers.ListField(child=serializers.CharField()),
+        read_only=True,
+        help_text='フィールド名をキーとしたエラーメッセージのリスト'
+    )
+
+class ErrorResponseSerializer(serializers.Serializer):
+    """
+    ステータスが "error" のレスポンスボディを表すシリアライザー
+    (クライアントエラー・サーバーエラー用 - 4xx, 5xx)
+    """
+    status = serializers.CharField(read_only=True, default="error")
+    message = serializers.CharField(read_only=True)
+
+class CSRFTokenSerializer(serializers.Serializer):
+    csrf_token = serializers.CharField(read_only=True)
+
+class CSRFTokenResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(read_only=True, default="success")
+    data = CSRFTokenSerializer(read_only=True)
+
+class LoginSuccessDataSerializer(serializers.Serializer):
+    user = PublicUserSerializer(read_only=True)
+
+class LoginSuccessResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(read_only=True, default="success")
+    data = LoginSuccessDataSerializer(read_only=True)
+
+class RegisterSuccessDataSerializer(serializers.Serializer):
+    user = PublicUserSerializer(read_only=True)
+
+class RegisterSuccessResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(read_only=True, default="success")
+    data = RegisterSuccessDataSerializer(read_only=True)
+
+class PrivateUserDataSerializer(serializers.Serializer):
+    user = PrivateUserSerializer(read_only=True)
+
+class PrivateUserResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(read_only=True, default="success")
+    data = PrivateUserDataSerializer(read_only=True)
+
+class UpdateUserDataSerializer(serializers.Serializer):
+    user = PrivateUserSerializer(read_only=True)
+
+class UpdateUserResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(read_only=True, default="success")
+    data = UpdateUserDataSerializer(read_only=True)
+
+class VerifyTokenSuccessDataSerializer(serializers.Serializer):
+    valid = serializers.BooleanField(read_only=True, default=True)
+
+class VerifyTokenSuccessResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(read_only=True, default="success")
+    data = VerifyTokenSuccessDataSerializer(read_only=True)
+
+class AdminUserResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(read_only=True, default="success")
+    data = AdminUserSerializer(read_only=True)
+
+class AdminUserDataSerializer(serializers.Serializer):
+    user = AdminUserSerializer(read_only=True)
+
+class AdminUserResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(read_only=True, default="success")
+    data = AdminUserDataSerializer(read_only=True)
+
+
+
