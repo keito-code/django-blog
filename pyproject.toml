@@ -1,12 +1,12 @@
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "myblog.settings.test"
-testpaths = ["blog", "accounts"]
+testpaths = ["blog", "accounts", "core"]
 python_files = "test_*.py"
 addopts = "--ignore=lib --ignore=lib64 --ignore=venv -v"
 norecursedirs = ["venv", "lib", "lib64", ".git", "__pycache__", ".tox", "dist", "build", "*.egg"]
 
 [tool.coverage.run]
-source = ["blog", "accounts"]
+source = ["blog", "accounts", "core"]
 omit = [
     "*/tests/*",
     "*/migrations/*",
