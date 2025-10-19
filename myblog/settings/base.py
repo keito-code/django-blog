@@ -279,37 +279,13 @@ LOGGING = {
 LOGS_DIR = BASE_DIR / 'logs'
 LOGS_DIR.mkdir(exist_ok=True)
 
-
-# Content Security Policy (CSP) 設定 (django-csp 4.0+ 形式)
+# Swagger UIページのみビュー側のデコレータで緩和される
 CONTENT_SECURITY_POLICY = {
-    'DIRECTIVES': {
-        'base-uri': (SELF,),
-        'connect-src': (SELF,),
-        'default-src': (SELF,),
-        'font-src': (
-            SELF, 
-            'https://stackpath.bootstrapcdn.com', 
-            'https://cdn.jsdelivr.net'
-        ),
-        'form-action': (SELF,),
-        'frame-src': ("'none'",),  
-        'img-src': (SELF, 'data:', 'https:'),
-        'object-src': ("'none'",),  
-        'report-uri': '/csp-report/',
-        'script-src': (
-            SELF, 
-            NONCE,  # NONCEは維持（スクリプトのセキュリティ）
-            'https://stackpath.bootstrapcdn.com', 
-            'https://cdn.jsdelivr.net'
-        ),
-        'style-src': (
-            SELF, 
-            "'unsafe-inline'",  # DRFの画面表示に必要なため許容
-            'https://stackpath.bootstrapcdn.com', 
-            'https://cdn.jsdelivr.net'
-        )
+    "EXCLUDE_URL_PREFIXES": ["/admin/"],  # Admin画面はCSP除外
+    "DIRECTIVES": {
+        "default-src": ["'none'"],  # デフォルトで全て拒否
+        "connect-src": [SELF],  # API呼び出しのみ許可
     },
-    'EXCLUDE_URL_PREFIXES': ('/admin/',),
 }
 
 REST_FRAMEWORK = {

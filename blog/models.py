@@ -1,6 +1,5 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.urls import reverse
 from django.utils.text import slugify
 import random
 import string
@@ -92,9 +91,6 @@ class Post(models.Model):
     def __str__(self):
         return self.title
         
-    def get_absolute_url(self):
-        return reverse('blog-web:post_detail', kwargs={'slug': self.slug})
-
     def save(self, *args, **kwargs):
         """保存時にslugを自動生成（重複チェック付き）"""
         if not self.slug:
@@ -123,52 +119,3 @@ class Post(models.Model):
     @property
     def is_published(self):
         return self.status == 'published'
-    
-class Comment(models.Model):
-    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments', verbose_name='記事')
-    name = models.CharField('名前', max_length=80)
-    email = models.EmailField('メールアドレス')
-    body = models.TextField('コメント')
-    created_at = models.DateTimeField('作成日時', auto_now_add=True)
-    updated_at = models.DateTimeField('更新日時', auto_now=True)
-    active = models.BooleanField('有効', default=True)
-    
-    class Meta:
-        ordering = ('created_at',)
-        verbose_name = 'コメント'
-        verbose_name_plural = 'コメント'
-        
-    def __str__(self):
-        return f'{self.name}によるコメント: {self.post}'
-
-
-class CSPViolation(models.Model):
-    """CSP違反レポートを記録するモデル"""
-    
-    # CSP違反の種類
-    directive = models.CharField('違反ディレクティブ', max_length=100, help_text='script-src, style-src など')
-    blocked_uri = models.TextField('ブロックされたURI', blank=True, help_text='違反したリソースのURI')
-    document_uri = models.TextField('ドキュメントURI', help_text='違反が発生したページのURI')
-    line_number = models.IntegerField('行番号', null=True, blank=True)
-    column_number = models.IntegerField('列番号', null=True, blank=True)
-    source_file = models.TextField('ソースファイル', blank=True)
-    original_policy = models.TextField('元のポリシー', help_text='違反したCSPポリシー')
-    
-    # 環境情報
-    user_agent = models.TextField('ユーザーエージェント', blank=True)
-    ip_address = models.GenericIPAddressField('IPアドレス', null=True, blank=True)
-    
-    # 日時
-    created = models.DateTimeField('発生日時', auto_now_add=True)
-    
-    # 処理状況
-    is_resolved = models.BooleanField('対応済み', default=False)
-    notes = models.TextField('メモ', blank=True)
-    
-    class Meta:
-        ordering = ('-created',)
-        verbose_name = 'CSP違反レポート'
-        verbose_name_plural = 'CSP違反レポート'
-        
-    def __str__(self):
-        return f'CSP違反: {self.directive} - {self.created.strftime("%Y-%m-%d %H:%M")}'
