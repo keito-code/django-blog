@@ -4,13 +4,15 @@
 [![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)](https://github.com/keito-code/django-blog)
 
 
-RESTful APIとWebビューを提供するブログアプリケーション
+RESTful APIを提供するブログアプリケーション
 
-## 🌐 デモサイト & APIドキュメント
+## 🌐 本番環境 & APIドキュメント
 
-**デモサイトURL**: https://django-blog-ox35.onrender.com
+**API URL**: https://api.post-log.com
 
-**APIドキュメント (Swagger UI)**: https://django-blog-ox35.onrender.com/api/v1/schema/swagger-ui/
+**APIドキュメント**:
+- [Swagger UI](https://api.post-log.com/v1/schema/swagger-ui/)
+- [ReDoc](https://api.post-log.com/v1/schema/redoc/)
 
 
 ## ⚡ 技術スタック
@@ -22,38 +24,39 @@ RESTful APIとWebビューを提供するブログアプリケーション
 - djangorestframework-camel-case
 
 
-## 📈 開発状況
-
-- ✅ **完成済み**
-  - Web版ブログ機能
-  - REST API（認証・CRUD）
-  - JWT認証システム
-  - CORS設定（Vercel対応）
-  - 検索機能
-  
-- 🚧 **開発中**
-  - [Next.jsフロントエンド](https://blog-frontend-ten-xi.vercel.app)
-
-
 ## 📡 主要なAPIエンドポイント
 
-### 認証 (`/api/v1/auth/`)
-- `POST /register/` - 新規登録
+### 認証 (`/v1/auth/`)
+- `GET /csrf/` - CSRFトークン取得
+- `POST /register/` - ユーザー登録
 - `POST /login/` - ログイン（JWT発行）
 - `POST /logout/` - ログアウト
-- `GET /user/` - ユーザー情報取得
+- `POST /refresh/` - トークンリフレッシュ
+- `GET /verify/` - トークン検証
 
-### ブログ (`/api/v1/blog/posts/`)
-- `GET /` - 記事一覧 (検索対応:?search=keyword)
+### ユーザー (`/v1/users/`)
+- `GET /me/` - 現在のユーザー情報取得
+- `PATCH /me/` - ユーザー情報更新
+- `GET /me/posts/` - ユーザーの投稿一覧
+
+### ブログ記事 (`/v1/posts/`)
+- `GET /` - 記事一覧取得
 - `POST /` - 記事作成（要認証）
-- `GET /{slug}/` - 記事詳細 (slugで取得)
-- `PUT /{slug}/` - 記事更新（要認証・作者のみ）
-- `DELETE /{slug}/` - 記事削除（要認証・作者のみ）
-- `POST /{slug}/publish/` - 記事公開 (要認証・作者のみ)
-- `POST /{slug}/unpublish/` - 記事非公開 (要認証・作者のみ)
+- `GET /{slug}/` - 記事詳細取得
+- `PUT /{slug}/` - 記事更新（要認証）
+- `PATCH /{slug}/` - 記事部分更新（要認証）
+- `DELETE /{slug}/` - 記事削除（要認証）
 
+### カテゴリー (`/v1/categories/`)
+- `GET /` - カテゴリー一覧取得
+- `POST /` - カテゴリー作成（要認証）
+- `GET /{slug}/` - カテゴリー詳細取得
+- `PUT /{slug}/` - カテゴリー更新（要認証）
+- `PATCH /{slug}/` - カテゴリー部分更新（要認証）
+- `DELETE /{slug}/` - カテゴリー削除（要認証）
+- `GET /{slug}/posts/` - カテゴリーの投稿一覧
 
-詳細な仕様は[Swagger UI](https://django-blog-ox35.onrender.com/api/v1/schema/swagger-ui/)を参照
+詳細な仕様は[Swagger UI](https://api.post-log.com/v1/schema/swagger-ui/)を参照
 
 
 ## 🔧 セットアップ
@@ -101,13 +104,6 @@ python manage.py shell
 >>> print(get_random_secret_key())
 ```
 
-## 📝 今後のAPI拡張予定
-
-- [ ] ページネーションAPI
-- [ ] コメント機能API
-- [ ] 画像アップロードAPI
-- [ ] タグ・カテゴリAPI
-- [ ] いいね機能API
 
 ## 👤 作者
 
