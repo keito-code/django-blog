@@ -193,15 +193,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-LOGIN_URL = 'accounts:login'
-LOGIN_REDIRECT_URL = '/blog/'
-LOGOUT_REDIRECT_URL = '/blog/'
-
 # セキュリティ設定
 X_FRAME_OPTIONS = 'DENY'  # iframe内での表示を完全禁止（クリックジャッキング対策）
-SECURE_CONTENT_TYPE_NOSNIFF = True  # IEのコンテンツ自動判定を無効化（MIME詐称防止）
-SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'  # リファラーポリシー
-SESSION_COOKIE_HTTPONLY = True  # JavaScriptからセッションCookieへのアクセス禁止（XSS対策）
+SECURE_CONTENT_TYPE_NOSNIFF = True  # MIME詐称防止
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin' 
+SESSION_COOKIE_HTTPONLY = True  # 管理画面用セッションのXSS対策
 if not DEBUG:
     SESSION_COOKIE_SECURE = True  # HTTPS接続でのみ送信
 
@@ -213,12 +209,8 @@ if not DEBUG:
         # 本番環境のみTrue
         SECURE_SSL_REDIRECT = True
     
-        # HSTS (HTTP Strict Transport Security)
-        # ブラウザに「このサイトは今後HTTPSでのみアクセスする」と記憶させる
-        SECURE_HSTS_SECONDS = 604800  # 7日間
-        # 将来的な追加設定（現在は無効）
-        # SECURE_HSTS_INCLUDE_SUBDOMAINS = True  # サブドメインも対象に
-        # SECURE_HSTS_PRELOAD = True  # ブラウザのプリロードリストに登録
+        # HSTS: ブラウザにHTTPS接続を記憶させる
+        SECURE_HSTS_SECONDS = 2592000  # 1ヶ月間
 
 # django-axes 設定（ブルートフォース対策）
 AXES_FAILURE_LIMIT = 5  # 5回失敗でロック
