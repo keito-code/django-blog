@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import Mock, patch
-from blog.api_views import PostViewSet
+from blog.views import PostViewSet
 from blog.serializers import PostListSerializer, PostCreateSerializer, PostUpdateSerializer
 
 class TestPostViewSetLogic:
@@ -27,7 +27,7 @@ class TestPostViewSetLogic:
         
         assert viewset.get_serializer_class() == PostUpdateSerializer
 
-    @patch('blog.api_views.Post.objects')
+    @patch('blog.views.Post.objects')
     def test_get_queryset_list_action(self, mock_post_objects):
         """listアクションでは認証に関わらず公開済み投稿のみ取得"""
         viewset = PostViewSet()
@@ -45,7 +45,7 @@ class TestPostViewSetLogic:
         mock_post_objects.select_related.assert_called_once_with('author', 'category')
         mock_queryset.filter.assert_called_once_with(status='published')
     
-    @patch('blog.api_views.Post.objects')
+    @patch('blog.views.Post.objects')
     def test_get_queryset_retrieve_authenticated(self, mock_post_objects):
         """retrieveアクション（認証済み）では公開+自分の投稿を取得"""
         viewset = PostViewSet()
@@ -64,7 +64,7 @@ class TestPostViewSetLogic:
         # Q()オブジェクトでフィルタされていることを確認
         assert mock_queryset.filter.called
 
-    @patch('blog.api_views.Post.objects')
+    @patch('blog.views.Post.objects')
     def test_get_queryset_retrieve_unauthenticated(self, mock_post_objects):
         """retrieveアクション（未認証）では公開済みのみ取得"""
         viewset = PostViewSet()

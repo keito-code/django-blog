@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import CurrentUserView
-from blog.api_views import UserPostListView
+from blog.views import UserPostListView
 
 urlpatterns = [
     path('me/', CurrentUserView.as_view(), name='me'),
