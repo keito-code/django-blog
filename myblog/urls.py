@@ -4,25 +4,18 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
 from drf_spectacular.views import SpectacularAPIView
-from myblog.views import RelaxedSpectacularSwaggerView, RelaxedSpectacularRedocView
+from myblog.views import RelaxedSpectacularSwaggerView, RelaxedSpectacularRedocView, home_view
 from django.http import JsonResponse
 from djangorestframework_camel_case.util import camelize
 
 
 urlpatterns = [
-    # Root redirects to API documentation
-    path('', RedirectView.as_view(pattern_name='swagger-ui', permanent=False), name='home'),
-
-    # Admin panel (for category management, etc.)
+    path('', home_view, name='home'),
     path(f'{settings.ADMIN_URL}', admin.site.urls),
-
-    # API endpoints
     path('v1/auth/', include(('accounts.urls_auth', 'auth'), namespace='auth-api')),
     path('v1/users/', include(('accounts.urls_users', 'users'), namespace='users-api')),
     path('v1/posts/', include(('blog.urls_posts', 'posts'), namespace='posts-api')),
     path('v1/categories/', include(('blog.urls_categories', 'categories'), namespace='categories-api')),
-
-    # API documentation
     path('v1/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('v1/schema/swagger-ui/', RelaxedSpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('v1/schema/redoc/', RelaxedSpectacularRedocView.as_view(url_name='schema'), name='redoc'),
