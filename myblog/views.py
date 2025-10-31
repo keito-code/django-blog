@@ -6,7 +6,7 @@ from django.shortcuts import render
 # ホームページ用の最小限CSP（インラインスタイルのみ許可）
 home_csp_decorator = csp({
     'default-src': ["'none'"],
-    'style-src': ["'unsafe-inline'"],  # インラインスタイルのみ
+    'style-src': ["'unsafe-inline'"],
 })
 
 @home_csp_decorator 
@@ -17,25 +17,25 @@ def home_view(request):
     """
     return render(request, 'home.html')
 
-# APIドキュメントページにのみ適用する、緩和されたCSPポリシーを定義します。
-# 'unsafe-inline'はSwagger UIなどが動作するために必要です。
-# サイトの他の部分のCSP設定には影響しません。
-custom_csp_decorator = csp({
+# APIドキュメント用CSP（Swagger UI/ReDocの動作に必要）
+api_docs_csp_decorator = csp({
+    'default-src': ["'none'"],
     'script-src': ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
-    'style-src': ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com"],
+    'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
     'font-src': ["'self'", "https://fonts.gstatic.com"],
-    'worker-src': ["'self'", "blob:"]
+    'img-src': ["'self'", "data:", "https://cdn.redoc.ly", "https://cdn.jsdelivr.net"],
+    'connect-src': ["'self'"],
+    'worker-src': ["'self'", "blob:"],
 })
 
-# drf-spectacularの標準ビューを継承し、カスタムCSPデコレータを適用したビュー
-@method_decorator(custom_csp_decorator, name='dispatch')
+@method_decorator(api_docs_csp_decorator, name='dispatch')
 class RelaxedSpectacularSwaggerView(SpectacularSwaggerView):
     """
     CSPを緩和したSwagger UIビュー
     """
     pass
 
-@method_decorator(custom_csp_decorator, name='dispatch')
+@method_decorator(api_docs_csp_decorator, name='dispatch')
 class RelaxedSpectacularRedocView(SpectacularRedocView):
     """
     CSPを緩和したReDocビュー
