@@ -3,10 +3,10 @@ from drf_spectacular.views import SpectacularSwaggerView, SpectacularRedocView
 from django.utils.decorators import method_decorator
 from django.shortcuts import render
 
-# ホームページ用の最小限CSP（インラインスタイルのみ許可）
+# ホームページ用の最小限CSP（インラインスタイルは許可しない）
 home_csp_decorator = csp({
     'default-src': ["'none'"],
-    'style-src': ["'unsafe-inline'"],
+    'style-src': ["'self'"],
 })
 
 @home_csp_decorator 
