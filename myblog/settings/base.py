@@ -271,11 +271,11 @@ LOGGING = {
 LOGS_DIR = BASE_DIR / 'logs'
 LOGS_DIR.mkdir(exist_ok=True)
 
-# Swagger UIページのみビュー側のデコレータで緩和される
+
+# APIドキュメントとhomepageはビュー側のデコレータで緩和している
 CONTENT_SECURITY_POLICY = {
     "DIRECTIVES": {
         "default-src": ["'none'"],  # デフォルトで全て拒否
-        "connect-src": [SELF],  # API呼び出しのみ許可
     },
     "EXCLUDE_URL_PREFIXES": [f"/{ADMIN_URL}"],
 }
