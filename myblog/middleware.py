@@ -17,6 +17,16 @@ class CacheControlMiddleware:
         # API以外は何もしない
         if not request.path.startswith('/v1/'):
             return response
+
+        # ========== 最初に Vary: Origin を削除 ==========
+        # cloudflareでキャッシュさせるため
+        if 'Vary' in response:
+            vary_values = [v.strip() for v in response['Vary'].split(',')]
+            vary_values = [v for v in vary_values if v.lower() != 'origin']
+            if vary_values:
+                response['Vary'] = ', '.join(vary_values)
+            else:
+                del response['Vary']
         
         # ========== APIドキュメント ==========
         if any(keyword in request.path for keyword in ['schema', 'swagger', 'redoc']):
