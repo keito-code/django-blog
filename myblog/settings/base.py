@@ -1,7 +1,6 @@
 from pathlib import Path
 import os
 import dj_database_url
-from csp.constants import NONCE, SELF
 from datetime import timedelta
 from decouple import Config, RepositoryEnv, Csv
 
@@ -352,8 +351,6 @@ if DEBUG:
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
     ]
 else:
     # 本番環境では環境変数から取得（必須）
