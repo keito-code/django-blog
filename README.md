@@ -1,7 +1,7 @@
 # Django Blog API
 
 [![CI/CD](https://github.com/keito-code/django-blog/actions/workflows/django.yml/badge.svg)](https://github.com/keito-code/django-blog/actions)
-[![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)](https://github.com/keito-code/django-blog)
+[![Coverage](https://img.shields.io/badge/coverage-89%25-green)](https://github.com/keito-code/django-blog)
 
 
 RESTful APIを提供するブログアプリケーション
@@ -9,6 +9,8 @@ RESTful APIを提供するブログアプリケーション
 ## 🌐 本番環境 & APIドキュメント
 
 **API URL**: https://api.post-log.com
+
+**Frontend (Next.js)**: https://post-log.com  
 
 **APIドキュメント**:
 - [Swagger UI](https://api.post-log.com/v1/schema/swagger-ui/)
