@@ -38,10 +38,9 @@ class CacheControlMiddleware:
         # ========== OPTIONS（CORSプリフライト） ==========
         if request.method == 'OPTIONS':
             response['Cache-Control'] = 'public, max-age=86400'
-            # OPTIONSは削除しない
             return response
 
-        # 記事詳細
+        # ========== GET/HEAD リクエスト ==========
         if request.method in ['GET', 'HEAD']:
             if '/posts/' in request.path and request.path.rstrip('/').count('/') == 3:
                 if hasattr(request, 'user') and request.user.is_authenticated:
@@ -49,7 +48,7 @@ class CacheControlMiddleware:
                     response['Cache-Control'] = 'private, max-age=86400'
                 else:
                     # 未認証: 公開記事のみ → public（CDNキャッシュ可）
-                    response['Cache-Control'] = 'public, max-age=86400, stale-while-revalidate=86400'
+                    response['Cache-Control'] = 'public, max-age=86400, s-maxage=180, stale-while-revalidate=86400'
                 
                 # Vary: Cookie のみに設定
                 response['Vary'] = 'Cookie'
@@ -57,7 +56,7 @@ class CacheControlMiddleware:
             
             # 記事一覧・カテゴリ（公開記事のみ）
             if any(keyword in request.path for keyword in ['posts', 'categories']):
-                response['Cache-Control'] = 'public, max-age=86400, stale-while-revalidate=86400'
+                response['Cache-Control'] = 'public, max-age=86400, s-maxage=180, stale-while-revalidate=86400'
                 # Vary ヘッダーを完全にクリーンアップ
                 self._clean_vary_header(response)
                 return response
