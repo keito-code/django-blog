@@ -19,10 +19,8 @@ class FailResponseSerializer(serializers.Serializer):
     使用例: フォーム入力エラー、バリデーション失敗
     """
     status = serializers.CharField(read_only=True, default="fail")
-    data = serializers.DictField(
-        child=serializers.ListField(child=serializers.CharField()),
+    data = serializers.JSONField(
         read_only=True,
-        help_text='フィールド名をキーとしたエラーメッセージのリスト'
     )
 
 class ErrorResponseSerializer(serializers.Serializer):
