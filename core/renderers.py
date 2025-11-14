@@ -11,13 +11,14 @@ class JSendCamelCaseRenderer(CamelCaseJSONRenderer):
     """
     
     def render(self, data, accepted_media_type=None, renderer_context=None):
-        """
-        成功レスポンスをJSend形式にラップしてからCamelCase変換
-        """
         response = renderer_context.get('response') if renderer_context else None
+
+        # response が無い場合は成功扱いしない（エラーの可能性があるため）
+        if response is None:
+            return super().render(data, accepted_media_type, renderer_context)
         
-        # エラーレスポンス（400番台、500番台）はcustom_exception_handlerが処理
-        if response and response.status_code >= 400:
+        # エラーステータス → custom_exception_handler の処理を尊重
+        if response.status_code >= 400:
             return super().render(data, accepted_media_type, renderer_context)
         
         # すでにJSend形式の場合はそのまま
