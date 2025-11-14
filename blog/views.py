@@ -231,6 +231,7 @@ class UserPostListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     pagination_class = CustomPageNumberPagination
     filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['created_at', 'updated_at']
     ordering = ['-created_at']
 
     # リソース名を定義（ページネーション用）
