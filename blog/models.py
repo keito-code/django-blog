@@ -106,11 +106,18 @@ class Post(models.Model):
 
             slug = base_slug
             counter = 1
+
+            # 重複チェック（自分自身を除外）
+            qs = Post.objects.filter(slug=slug)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
             
-            # 重複チェック
-            while Post.objects.filter(slug=slug).exists():
+            while qs.exists():
                 slug = f"{base_slug}-{counter}"
                 counter += 1
+                qs = Post.objects.filter(slug=slug)
+                if self.pk:
+                    qs = qs.exclude(pk=self.pk)
             
             self.slug = slug
         
