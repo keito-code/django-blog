@@ -2,7 +2,6 @@
 ViewSetのレスポンスをJSend形式に統一するMixin
 ResponseFormatterを活用して一貫性のあるレスポンスを実現
 """
-from rest_framework import status
 from core.responses import ResponseFormatter
 
 
@@ -73,7 +72,7 @@ class JSendResponseMixin:
         return self.update(request, *args, **kwargs)
     
     def destroy(self, request, *args, **kwargs):
-        """削除時はメッセージを返す"""
+        """削除成功: data:null を返す（JSend）"""
         instance = self.get_object()
         self.perform_destroy(instance)
         
