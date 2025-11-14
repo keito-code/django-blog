@@ -49,6 +49,7 @@ class TestCookieJWTAuthentication:
         """有効なトークンで認証成功"""
         # モックの設定
         mock_token = Mock()
+        mock_token.token_type = "access"
         mock_get_validated_token.return_value = mock_token
         mock_get_user.return_value = test_user  # conftest.pyのフィクスチャを使用
         
